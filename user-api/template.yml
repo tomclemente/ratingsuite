@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  user-api
+
+Transform:
+- AWS::Serverless-2016-10-31
+
+Resources:
+  userapi:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: user-api
+      Handler: app.handler
+      Runtime: nodejs12.x
+      MemorySize: 128
+      Timeout: 200
+      Description: A Lambda function that handles the User API.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AmazonRDSFullAccess
+        - AWSLambdaExecute

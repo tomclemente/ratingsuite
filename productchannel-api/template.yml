@@ -1,0 +1,22 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  productchannel-api
+
+Transform:
+- AWS::Serverless-2016-10-31
+
+Resources:
+  productchannelapi:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: productchannel-api
+      Handler: src/handlers/app.handler
+      Runtime: nodejs12.x
+      MemorySize: 128
+      Timeout: 200
+      Description: A Lambda function that handles the productchannel API.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AmazonRDSFullAccess
+        - AWSLambdaExecute

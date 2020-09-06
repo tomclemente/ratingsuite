@@ -1,0 +1,9 @@
+{
+    "name": "productchannel-api",
+    "description": "Product Channel API",
+    "version": "0.0.1",
+    "private": true,
+    "dependencies": {
+        "node-mysql": "^0.4.2"
+    }
+}
