@@ -1,0 +1,12 @@
+{
+    "name": "user-api",
+    "description": "User API",
+    "main": "app.js",
+    "version": "0.0.1",
+    "private": true,
+    "dependencies": {
+        "aws-sdk": "^2.742.0",
+        "axios": "^0.20.0",
+        "mysql": "^2.18.1"
+    }
+}
