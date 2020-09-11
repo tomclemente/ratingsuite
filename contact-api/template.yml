@@ -1,0 +1,21 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  contact-api
+
+Transform:
+- AWS::Serverless-2016-10-31
+
+Resources:
+  contactapi:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: contact-api
+      Handler: app.handler
+      Runtime: nodejs12.x
+      MemorySize: 128
+      Timeout: 200
+      Description: A Lambda function that handles the User API.
+      Policies:               
+        - AWSLambdaExecute
+        - AWSLambdaBasicExecutionRole 
+        - AmazonSESFullAccess

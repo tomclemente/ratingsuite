@@ -1,0 +1,11 @@
+{
+    "name": "contact-api",
+    "description": "Contact API",
+    "main": "app.js",
+    "version": "0.0.1",
+    "private": true,
+    "dependencies": {
+        "aws-sdk": "^2.742.0",
+        "axios": "^0.20.0"
+    }
+}
