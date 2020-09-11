@@ -57,10 +57,10 @@ exports.handler = async (event, context) => {
             switch (event.httpMethod) {
 
                 case 'GET':
-                    sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, n.flag
-                            FROM UserMaster um
-                            INNER JOIN UserPool up on um.userid = up.userid
-                            INNER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1
+                    sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, n.flag \
+                            FROM UserMaster um \
+                            INNER JOIN UserPool up on um.userid = up.userid \
+                            INNER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
                             WHERE um.userid = '" + userid + "'";
                     executeQuery(sql).then(resolve, reject);
                 break;
@@ -75,9 +75,9 @@ exports.handler = async (event, context) => {
                     
                 case 'PUT':
                     updateUserAttribute(params.attributes, username, process.env.COGNITO_POOLID).then(function() {
-                        sql = "UPDATE UserMaster 
-                                SET organization = '" + params.organization + "'
-                                organization = '" + params.organization + "'
+                        sql = "UPDATE UserMaster \
+                                SET organization = '" + params.organization + "' \
+                                organization = '" + params.organization + "' \
                                 WHERE userid = '" + username + "'";
                         executeQuery(sql).then(resolve, reject);  
                     }, reject);
@@ -85,55 +85,6 @@ exports.handler = async (event, context) => {
                 
                 case 'DELETE': 
                 
-                    deletePromises.push(getUserMaster());
-                    deletePromises.push(getUserPool());
-                    deletePromises.push(getNotification());
-                    
-                    Promise.all(deletePromises).then(function() {
-                        
-                        
-                    });
-              
-                
-    //                "1. If (userpool.type = ‘User’ and subscription.idProductPlan = 'pp1) or (userpool.type = ‘Admin’ and usermaster.usertype <> 'E'), 
-//    
-//    Select up.type,idUserPool from UserPool where userid = ""username""
-//    Select um.userType from UserMaster where userid = ""username""
-//    Select idProductPlan,upid from Subscription where idUserPool = ""idUserPool""
-//    
-//    Update Subscription
-//    set status = 'Cancelled'
-//    where idUserPool = 
-//    
-//    2. 
-//    
-//    
-//    Step a: Get all the upid associated with the userid
-//    
-//    var[] user_upid = Select s.upid from Subscription s JOIN UserPool up on s.idUserPool = up.idUserPool  WHERE up.userid = ' "" + username + "" '
-//    
-//    Step b: Get all the pcids associated with the userid
-//    
-//    var[] user_pcid = Select pcid from ProductChannelMapping where upcid  in (Select upcid from UserProductChannel where upid in ' "" + user_upid + "" ')
-//    
-//    Step c: Update ProductChannelMapping for unsubscribed Products
-//    
-//    Update table ProductChannel
-//    Set nActiveUsers = nActiveUsers - 1 
-//    where pcid in ' "" + user_pcid + "" ' 
-//    
-//    Update table ProductChannel
-//    Set status = 'inactive' 
-//    where nActiveUsers = 0 and pcid in  ' "" + user_pcid + "" ' 
-//    
-//    
-//    3. Delete from UserProduct
-//        where upid in ""user_upid""
-//        Cascade delete - userproductchannel, productchannelmapping, productmapping"
-                
-                
-                
-
                     deletePromises.push(getUserMaster());
                     deletePromises.push(getUserPool());
                     deletePromises.push(getNotification());
@@ -263,7 +214,7 @@ function getNotification() {
 }
 
 function updateCancelledSubscription(idUserPool) {    
-    sql = "UPDATE Subscription SET subscriptionStatus = 'cancelled' where idUserPool = '" + idUserPool + "'";
+    sql = "UPDATE Subscription SET status = 'Cancelled' where idUserPool = '" + idUserPool + "'";
     return executeQuery(sql);
 }
 
@@ -321,7 +272,7 @@ function updateUserAttribute(userAttributes, username, userPoolId){
     });
 };
 
-function insertUserMaster(params, username) {
+function insertUserMaster() {
     sql = "INSERT INTO UserMaster (userid, name, userStatus, userType, organization) \
         VALUES (\
             '" + userid + "',\
