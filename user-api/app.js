@@ -13,6 +13,8 @@ var connection = mysql.createConnection({
 var sql;
 var userid;
 var username;
+var authname;
+var organization;
 var deletePromises = [];
 var userPoolData;
 var userMasterData;
@@ -23,7 +25,12 @@ var activeSubscriptionData;
 var productChannelMappingData;
 
 
+
+
 exports.handler = async (event, context) => {
+
+    organization = event.requestContext.authorizer.claims.organization;
+//    authname = event.requestContext.authorizer.claims.name;
 
     username = event.requestContext.authorizer.claims.username;
     userid = event.requestContext.authorizer.claims.username;
@@ -49,33 +56,83 @@ exports.handler = async (event, context) => {
 
             switch (event.httpMethod) {
 
-                case 'GET': // Return user details from usermaster based on userid
-                    sql = "SELECT * FROM UserMaster where userid = '" + username + "'";
-                    executeQuery(sql).then(resolve,reject);
+                case 'GET':
+                    sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, n.flag
+                            FROM UserMaster um
+                            INNER JOIN UserPool up on um.userid = up.userid
+                            INNER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1
+                            WHERE um.userid = '" + userid + "'";
+                    executeQuery(sql).then(resolve, reject);
                 break;
 
-                case 'POST': // Read user details from the auth token
-                            // Create an entry in usermaster
+                case 'POST': 
                     insertUserMaster(params,username).then(function() {
-
-                        sql = "SELECT * FROM UserPool where userid = '" + username + "'";
-                        executeQuery(sql).then(function(data) {
-                            //insertNotification(username, data.upid, params);
-
-                            var emailParam = generateWelcomeParam(username);
-                            sendEmail(emailParam).then(resolve,reject);
-                        })    
-                    },reject);
+                        insertNotification();                        
+                        var emailParam = generateWelcomeParam(username);
+                        sendEmail(emailParam).then(resolve,reject);
+                    });
                 break;
                     
-                case 'PUT': // Update cognito record and usermaster table        
+                case 'PUT':
                     updateUserAttribute(params.attributes, username, process.env.COGNITO_POOLID).then(function() {
-                        sql = "UPDATE UserMaster SET userid = '" + params.email + "' WHERE userid = '" + username + "'";
+                        sql = "UPDATE UserMaster 
+                                SET organization = '" + params.organization + "'
+                                organization = '" + params.organization + "'
+                                WHERE userid = '" + username + "'";
                         executeQuery(sql).then(resolve, reject);  
                     }, reject);
                 break;
                 
                 case 'DELETE': 
+                
+                    deletePromises.push(getUserMaster());
+                    deletePromises.push(getUserPool());
+                    deletePromises.push(getNotification());
+                    
+                    Promise.all(deletePromises).then(function() {
+                        
+                        
+                    });
+              
+                
+    //                "1. If (userpool.type = ‘User’ and subscription.idProductPlan = 'pp1) or (userpool.type = ‘Admin’ and usermaster.usertype <> 'E'), 
+//    
+//    Select up.type,idUserPool from UserPool where userid = ""username""
+//    Select um.userType from UserMaster where userid = ""username""
+//    Select idProductPlan,upid from Subscription where idUserPool = ""idUserPool""
+//    
+//    Update Subscription
+//    set status = 'Cancelled'
+//    where idUserPool = 
+//    
+//    2. 
+//    
+//    
+//    Step a: Get all the upid associated with the userid
+//    
+//    var[] user_upid = Select s.upid from Subscription s JOIN UserPool up on s.idUserPool = up.idUserPool  WHERE up.userid = ' "" + username + "" '
+//    
+//    Step b: Get all the pcids associated with the userid
+//    
+//    var[] user_pcid = Select pcid from ProductChannelMapping where upcid  in (Select upcid from UserProductChannel where upid in ' "" + user_upid + "" ')
+//    
+//    Step c: Update ProductChannelMapping for unsubscribed Products
+//    
+//    Update table ProductChannel
+//    Set nActiveUsers = nActiveUsers - 1 
+//    where pcid in ' "" + user_pcid + "" ' 
+//    
+//    Update table ProductChannel
+//    Set status = 'inactive' 
+//    where nActiveUsers = 0 and pcid in  ' "" + user_pcid + "" ' 
+//    
+//    
+//    3. Delete from UserProduct
+//        where upid in ""user_upid""
+//        Cascade delete - userproductchannel, productchannelmapping, productmapping"
+                
+                
+                
 
                     deletePromises.push(getUserMaster());
                     deletePromises.push(getUserPool());
@@ -264,37 +321,25 @@ function updateUserAttribute(userAttributes, username, userPoolId){
     });
 };
 
-function insertUserMaster(params, username){
-    return new Promise((resolve, reject) => {
-       
-        let sql = "INSERT INTO UserMaster (userid, name, userStatus, userType, organization, lastLogin, createdOn) \
-            VALUES (\
-                '" + username + "',\
-                '" + params.name + "',\
-                'NEW',\
-                'NE',\
-                '" + params.organization + "',\
-                '" + params.lastLogin + "',\
-                '" + params.created + "')";
-
-        executeQuery(sql).then(resolve,reject);
-    });
+function insertUserMaster(params, username) {
+    sql = "INSERT INTO UserMaster (userid, name, userStatus, userType, organization) \
+        VALUES (\
+            '" + userid + "',\
+            '" + authname + "',\
+            'NEW',\
+            'NE',\
+            '" + organization + "'";
+            
+    return executeQuery(sql);
 };
 
-function insertNotification(username, upid, params){
-    return new Promise((resolve, reject) => {
-       
-        let sql = "INSERT INTO Notification (userid, notificationTypeID, upid, flag, frequency, lastUpdatedDt) \
-            VALUES (\
-                '" + username + "',\
-                '1',\
-                '" + upid + "',\
-                '1',\
-                '" + params.frequency + "',\
-                '" + params.lastUpdatedDt + "')";
-
-        executeQuery(sql).then(resolve,reject);
-    });
+function insertNotification(){
+    sql = "INSERT INTO Notification (userid, notificationTypeID, flag) \
+        VALUES (\
+            '" + userid + "',\
+            '1',\
+            '1'";
+    return executeQuery(sql);
 };
 
 function sendEmail(params) {
