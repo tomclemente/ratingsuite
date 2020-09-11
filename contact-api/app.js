@@ -49,17 +49,15 @@ function sendEmail(params) {
 function generateEmailparam(params) {
     var param = {
         Destination: {
-            ToAddresses: ["contact@ratingsuite.com"]
+            ToAddresses: [process.env.TO_EMAIL]
         },
         Message: {
             Body: {
-                Text: { Data: params.body
-
-                }
+                Text: { Data: params.body}
             },
-            Subject: { Data: params.name + " : " + params.subject + " : " + params.email}
+            Subject: { Data: params.name + " : " + params.subject + " : " + params.email }
         },
-        Source: "bb452@cornell.edu"
+        Source: process.env.FROM_EMAIL
     };
     return param;
 }
