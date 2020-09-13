@@ -2,6 +2,7 @@ var mysql = require('mysql');
 var AWS = require('aws-sdk');
 
 var sourceEmail = process.env.SOURCE_EMAIL;
+var supportEmail = process.env.SUPPORT_EMAIL;
 
 var connection = mysql.createConnection({
     host: process.env.RDS_ENDPOINT,
@@ -64,6 +65,38 @@ exports.handler = async (event, context) => {
                 break;
                     
                 case 'PUT':
+                    if (params.plan == 'Sandbox') {
+                        throw new Error("Not authorized.");
+                        
+                    } else {
+                        getUserMasterPUT().then(function(result) {
+                            if (result == undefined) {
+                                throw new Error("Not authorized.");                                
+                                
+                            } else {
+                                if (result.type == 'user') {
+                                    throw new Error("Not authorized.");    
+                                } else if (result.type == 'admin') {
+                                    idUserPool = result.idUserPool;
+                                    
+                                    if (params.updateType == 'Product') {
+                                        if (params.productAlias != undefined && params.upid != undefined) {
+                                            updateUserProductPUT(params.productAlias, params.upid);
+                                        }
+                                    } else if (params.updateType == 'Channel') {
+                                        updateUserProductChannelPUT(params.channelname, 
+                                                                params.channelURL, params.upcid).then(resolve, reject);
+                                        updateProductChannelPUT(params.upcid).then(resolve, reject);
+                                        
+                                    }
+                                }
+                            }
+                            
+                        }, reject).then(function() {
+                            var emailParam = generateUpdateEmail(params.upid, params.upcid);
+                            sendEmail(emailParam).then(resolve, reject);
+                        },reject);
+                    }
                    
                 break;
                 
@@ -269,12 +302,14 @@ function setInactiveProductChannel(upcid) {
 }
 
 function deleteUserProduct(upid) {
-    sql = "DELETE FROM UserProduct where upid = '" + upid + "'" ;
+    sql = "DELETE FROM UserProduct \
+            WHERE upid = '" + upid + "'" ;
     return executeQuery(sql);
 }
 
 function deleteUserProductChannel(upcid) {
-    sql = "DELETE FROM UserProductChannel where upcid = '" + upcid + "'" ;
+    sql = "DELETE FROM UserProductChannel \
+            WHERE upcid = '" + upcid + "'" ;
     return executeQuery(sql);
 }
 
@@ -307,7 +342,9 @@ function generateCancelEmail() {
 //GET FUNCTIONS
 
 function getIdPool() {
-    sql = "SELECT idUserPool from UserPool where userid = '" + userid + "'" ;
+    sql = "SELECT idUserPool \
+            FROM UserPool \
+            WHERE userid = '" + userid + "'" ;
     return executeQuery(sql);
 }
 
@@ -323,6 +360,61 @@ function getSubscriptionDetails(idUserPool) {
 
 //PUT FUNCTIONS
 
+function getUserMasterPUT() {
+    sql = "SELECT up.type, up.idUserPool \
+            FROM UserPool up \
+            JOIN UserMaster um ON (up.userid = um.userid) \
+            WHERE um.userStatus <> 'beta' \
+            AND um.userType <> 'e' \
+            AND um.userid '" + userid + "'" ;
+    return executeQuery(sql);;
+}
+
+function updateUserProductPUT(alias, upid) {
+    sql = "UPDATE UserProduct \
+            SET productAlias = '" + alias + "' \
+            WHERE upid = '" + upid + "' ";
+    return executeQuery(sql);;
+}
+
+function updateUserProductChannelPUT(channelname, channelURL, upcid) {
+    sql = "UPDATE UserProductChannel \
+            SET channelname = '" + channelname + "', \ 
+                channelURL = '" + channelURL + "', \
+                status = 'NEW' \
+            WHERE upcid = '" + upcid + "' ";
+    return executeQuery(sql);
+}
+
+function updateProductChannelPUT(upcid) {
+    sql = "UPDATE ProductChannel \
+            SET status = 'review' \
+            WHERE pcid = (SELECT pcid from \
+                        ProductChannelMapping \
+                        WHERE upcid = '" + upcid + "' ";
+    return executeQuery(sql);    
+}
+
+function generateUpdateEmail(upid, upcid) {
+    var param = {
+        Destination: {
+            ToAddresses: [supportEmail]
+        },
+        Message: {
+            Body: {
+                Text: { Data: "A product has been updated."
+
+                }
+            },
+            Subject: { Data: "Subscription update: \
+                        upid: '" + upid + "' \
+                        upcid: '" + upcid + "'" }
+        },
+        Source: sourceEmail
+    };
+
+    return param;
+}
 
 
 //POST FUNCTIONS
