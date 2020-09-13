@@ -1,7 +1,7 @@
 var mysql = require('mysql');
 var AWS = require('aws-sdk');
 
-var sourceEmail = "noreply@ratingsuite.com";
+var sourceEmail = process.env.SOURCE_EMAIL;
 
 var connection = mysql.createConnection({
     host: process.env.RDS_ENDPOINT,
@@ -14,25 +14,28 @@ var sql;
 var userid;
 var username;
 var deletePromises = [];
-var userPoolData;
 var userMasterData;
+
+var userPoolData;
+
 var subscriptionData;
 var notificationData;
 var userProductChannelData;
 var activeSubscriptionData;
 var productChannelMappingData;
 
+var idUserPool;
 
 exports.handler = async (event, context) => {
 
     username = event.requestContext.authorizer.claims.username;
-    userid = event.requestContext.authorizer.claims.username;
-    
+
     let params = JSON.parse(event["body"]);
     
     console.log('Received event:', JSON.stringify(event, null, 2));
     
-    if (username == null) {
+    userid = event.requestContext.authorizer.claims.username;
+    if (userid == null) {
         throw new Error("Username missing. Not authenticated.");
     }
     
@@ -46,85 +49,97 @@ exports.handler = async (event, context) => {
     try {
         
         body = await new Promise((resolve, reject) => {
-
             switch (event.httpMethod) {
 
-                case 'GET': // Return user details from usermaster based on userid
-                    sql = "SELECT * FROM UserMaster where userid = '" + username + "'";
-                    executeQuery(sql).then(resolve,reject);
+                case 'GET':
+                    getIdPool().then(function(result) {
+                        if (result != undefined) {
+                            getSubscriptionDetails(result.idUserPool).then(resolve, reject);
+                        }
+                    }, reject);
                 break;
 
-                case 'POST': // Read user details from the auth token
-                            // Create an entry in usermaster
-                    insertUserMaster(params,username).then(function() {
-
-                        sql = "SELECT * FROM UserPool where userid = '" + username + "'";
-                        executeQuery(sql).then(function(data) {
-                            //insertNotification(username, data.upid, params);
-
-                            var emailParam = generateWelcomeParam(username);
-                            sendEmail(emailParam).then(resolve,reject);
-                        })    
-                    },reject);
+                case 'POST':
+                
                 break;
                     
-                case 'PUT': // Update cognito record and usermaster table        
-                    updateUserAttribute(params.attributes, username, process.env.COGNITO_POOLID).then(function() {
-                        sql = "UPDATE UserMaster SET userid = '" + params.email + "' WHERE userid = '" + username + "'";
-                        executeQuery(sql).then(resolve, reject);  
-                    }, reject);
+                case 'PUT':
+                   
                 break;
                 
                 case 'DELETE': 
-
+                
                     deletePromises.push(getUserMaster());
-                    deletePromises.push(getUserPool());
-                    deletePromises.push(getNotification());
                     
                     Promise.all(deletePromises).then(function() {
-                        if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
-                            getSubscription(userPoolData.idUserPool).then(function() {
-                                if ((userPoolData.type == 'user' && 
-                                    subscriptionData != undefined && subscriptionData.subscriptionType =='pp1') ||
-                                    (userPoolData.type == 'admin' && userMasterData.usertype != 'E')) {
+                        if (userMasterData.userType == 'e') {
+                            throw new Error("Not authorized.");                            
+                        }
+                        
+                        if (params.plan == 'Sandbox') {
+                            getSandboxIdUserPool().then(function(result) {
+                                console.log("getSandboxIdUserPool result: ", result.idUserPool);
+                                if (result.idUserPool != undefined) {
+                                   deleteFromUserPool(result.idUserPool).then(resolve, reject); 
+                                }
+                            }, reject);
+                            
+                        } else {
+                            getAdminIdUserPool().then(function(result) {
+                                console.log("getAdminIdUserPool result: ", result.idUserPool);                                
+                                
+                                if (result == undefined || result == null) {
+                                    throw new Error("Not authorized.");
                                     
-                                    updateCancelledSubscription(userPoolData.idUserPool).then(resolve,reject);
+                                } else {
+                                    idUserPool = result.idUserPoo;
+                                    getSubscription(params.upid, result.idUserPool).then(function(result) {
+                                        if (result == undefined || result == null) {
+                                            throw new Error("Not authorized.");
+                                            
+                                        } else {
+                                            if (params.updateType == 'Product' 
+                                                    && (params.upid == undefined || params.upid == null) {
+                                                throw new Error("upid is missing.");
+                                            }
+                                            else if (params.updateType == 'Channel' 
+                                                        && (params.upcid == undefined || params.upcid == null) {
+                                                throw new Error("upcid is missing.");
+                                            }
+                                        }
+                                    });
                                 }
                             });
                         }
+                                                
+                    }).then(function() {
+                        getUserProductChannel(params.upcid, params.upid).then(function(result) {
+                            if (result == undefined) {
+                                if (params.updateType == 'Product' || params.updateType == 'Channel') {
+                                    cancelSubscription(idUserPool, params.upid).then(resolve, reject);
+                                    decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
+                                    setInactiveProductChannel(params.upcid).then(resolve, reject);
+                                    deleteUserProduct(params.upid).then(resolve, reject);
+                                }
+                            }          
+                        }, reject);     
+                                           
+                    }, reject).then(function() {
                         
-                        //send an email and delete cognito user pool
-                        if (notificationData != undefined && notificationData.flag == '1') {
-                            deleteCognitoUser();
-                            var emailParam = generateGoodbyeParam();
-                            sendEmail(emailParam).then(resolve,reject);
-                        }      
-
-                    }).then(function() { //do some cleanup
-                        deleteUserMaster();
-
-                    }).then(function() { 
-                        getActiveSubscription(username).then(function() {
-                            if (activeSubscriptionData == undefined || activeSubscriptionData == null) {
-                                deleteUserProduct(username);
-                            }                            
-                        }).then(function() {
-
-                            if (activeSubscriptionData != undefined && activeSubscriptionData.upid != null) {
-                                getUserProductChannel(activeSubscriptionData.upid).then(function() {
-
-                                    if (userProductChannelData != undefined && userProductChannelData.upcid != null) {
-                                        getProductChannelMapping(userProductChannelData.upcid).then(function() {
-
-                                            if (productChannelMappingData != undefined && productChannelMappingData.pcid != null) {
-                                                updateProductChannel(productChannelMappingData.pcid).then(resolve,reject);
-                                            }
-                                        });
-                                    }   
-                                });
-                            }
-                        });
-                    });     
+                        if (params.updateType == 'Channel') {
+                            decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
+                            setInactiveProductChannel(params.upcid).then(resolve, reject);
+                            deleteUserProductChannel(params.upcid).then(resolve, reject);
+                            
+                        } else if (params.updateType == 'Product') {
+                            getNotificationFlag.then(function(result) {
+                                if (result.flag == '1') {
+                                    var emailParam = generateCancelEmail();
+                                    sendEmail(emailParam).then(resolve,reject);
+                                }
+                            });
+                        }
+                    }, reject);
                     
                 break;
                     
@@ -147,94 +162,7 @@ exports.handler = async (event, context) => {
     };
 };
 
-function updateProductChannel(pcid) {
-    sql = "UPDATE ProductChannel SET status = 'inactive' where pcid = '" + pcid + "'";
-    return executeQuery(sql);
-}
-
-function getUserProductChannel(upid) {
-    sql = "SELECT * FROM UserProductChannel where upid = '" + upid + "'";
-    return executeQuery(sql).then(function(result) {
-        userProductChannelData = result[0];
-        console.log("userProductChannelData: ", userProductChannelData);
-    });
-}
-
-function getProductChannelMapping(upcid) {
-    sql = "SELECT * FROM ProductChannelMapping where upcid = '" + upcid + "'";
-    return executeQuery(sql).then(function(result) {
-        productChannelMappingData = result[0];
-        console.log("productChannelMappingData: ", productChannelMappingData);
-    });
-}
-
-function deleteUserMaster() {
-    sql = "DELETE FROM UserMaster where userid = '" + username + "'";
-    return executeQuery(sql);
-}
-
-function getUserMaster() {
-    sql = "SELECT * FROM UserMaster where userid = '" + userid + "'";                    
-    return executeQuery(sql).then(function(result) {
-        userMasterData = result[0];
-        console.log("UserMasterData: ", userMasterData);
-    });
-}
-
-function getUserPool() {
-    sql = "SELECT * FROM UserPool where userid = '" + userid + "'";
-    return executeQuery(sql).then(function(result) {
-        userPoolData = result[0];
-        console.log("userPoolData: ", userPoolData);
-    });
-}
-
-function getSubscription(idUserPool) {    
-    sql = "SELECT * FROM Subscription where idUserPool = '" + idUserPool + "'";
-    return executeQuery(sql).then(function(result) {
-        subscriptionData = result[0];
-        console.log("subscriptionData: ", subscriptionData);
-    });
-}
-
-function getNotification() {
-    sql = "SELECT * FROM Notification where userid = '" + userid + "'";
-    return executeQuery(sql).then(function(result) {
-        notificationData = result[0];
-        console.log("notificationData: ", notificationData);
-    });
-}
-
-function updateCancelledSubscription(idUserPool) {    
-    sql = "UPDATE Subscription SET subscriptionStatus = 'cancelled' where idUserPool = '" + idUserPool + "'";
-    return executeQuery(sql);
-}
-
-function deleteCognitoUser() {
-    const cognito = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
-    cognito.adminDeleteUser({
-        UserPoolId: process.env.COGNITO_POOLID,
-        Username: 'sample', //should be username, for testing purposes only
-    });
-}
-
-function getActiveSubscription(id) {    
-    sql = "SELECT * FROM Subscription where upid = '" + id + "' and subscriptionStatus = 'active'";
-    return executeQuery(sql).then(function(result) {
-        subscriptionData = result[0];
-        console.log("activeSubscriptionData: ", activeSubscriptionData);
-    });
-}
-
-function deleteUserProduct(id) {
-    sql = "DELETE FROM UserProduct  where upid = '" + id + "'";
-    return executeQuery(sql);
-}
-
-function deleteProductMaster(id) {
-    sql = "DELETE FROM ProductMaster  where upid = '" + id + "'";
-    return executeQuery(sql);
-}
+//COMMON FUNCTIONS
 
 function executeQuery(sql) {
     return new Promise((resolve, reject) => {
@@ -246,54 +174,6 @@ function executeQuery(sql) {
             }
             resolve(result);
         });
-    });
-};
-
-function updateUserAttribute(userAttributes, username, userPoolId){
-    let cognitoISP = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
-    return new Promise((resolve, reject) => {
-        console.log("userAttributes: ", userAttributes);
-        let params = {
-            UserAttributes: userAttributes,
-            UserPoolId: userPoolId,
-            Username: username
-        };
-
-        cognitoISP.adminUpdateUserAttributes(params, (err, data) => err ? 
-        reject(err) : resolve(data));
-    });
-};
-
-function insertUserMaster(params, username){
-    return new Promise((resolve, reject) => {
-       
-        let sql = "INSERT INTO UserMaster (userid, name, userStatus, userType, organization, lastLogin, createdOn) \
-            VALUES (\
-                '" + username + "',\
-                '" + params.name + "',\
-                'NEW',\
-                'NE',\
-                '" + params.organization + "',\
-                '" + params.lastLogin + "',\
-                '" + params.created + "')";
-
-        executeQuery(sql).then(resolve,reject);
-    });
-};
-
-function insertNotification(username, upid, params){
-    return new Promise((resolve, reject) => {
-       
-        let sql = "INSERT INTO Notification (userid, notificationTypeID, upid, flag, frequency, lastUpdatedDt) \
-            VALUES (\
-                '" + username + "',\
-                '1',\
-                '" + upid + "',\
-                '1',\
-                '" + params.frequency + "',\
-                '" + params.lastUpdatedDt + "')";
-
-        executeQuery(sql).then(resolve,reject);
     });
 };
 
@@ -312,18 +192,111 @@ function sendEmail(params) {
     });
 };
 
-function generateWelcomeParam() {
+//DELETE FUNCTIONS
+
+function getUserMaster() {
+    sql = "SELECT * FROM UserMaster where userid = '" + userid + "'";
+    return executeQuery(sql).then(function(result) {
+        userMasterData = result[0];
+        console.log("UserMasterData: ", userMasterData);
+    });
+}
+
+function getSandboxIdUserPool() {
+    sql = "SELECT idUserPool \
+            FROM UserPool up \
+            JOIN Subscription s ON (s.idUserPool = up.idUserPool) \
+            WHERE up.type = 'admin' \
+            AND s.idProductPlan = 'pp1' \
+            AND s.subscriptionStatus = 'active' ";                    
+    return executeQuery(sql);
+}
+
+function deleteFromUserPool(idUserPool) {
+    sql = "DELETE FROM UserPool \
+            WHERE idUserPool = '" + idUserPool + "' \
+            AND userid = '" + userid + "'";
+    return executeQuery(sql);
+}
+
+function getAdminIdUserPool() {
+    sql = "SELECT up.idUserPool \
+            FROM UserPool up \
+            JOIN UserMaster um ON (up.userid = um.userid) \
+            WHERE um.userStatus <> 'beta' \
+            AND up.type = 'admin' \
+            AND um.userid '" + userid + "'";
+    return executeQuery(sql);
+}
+
+function getSubscription(upid, idUserPool) {
+    sql = "SELECT subscriptionID \
+            FROM Subscription \
+            WHERE upid = '" + upid + "' \
+            AND idUserPool = '" + idUserPool + "'";
+    return executeQuery(sql);    
+}
+
+function getUserProductChannel(upcid, upid) {
+    sql = "SELECT upcid FROM UserProductChannel \
+            WHERE upcid <> '" + upcid + "' \ 
+            AND upid = '" + upid + "'" ;            
+    return executeQuery(sql);
+}
+
+function cancelSubscription(idUserPool, upid) {
+    sql = "UPDATE Subscription \
+            SET cancelledOn = GETDATE() \
+            WHERE idUserPool = '" + idUserPool + "' \ 
+            AND upid = '" + upid + "'" ;            
+    return executeQuery(sql);
+}
+
+function decreaseActiveUsersFromProductChannel(upcid) {
+    sql = "UPDATE ProductChannel \
+            SET nActiveUsers = nActiveUsers - 1 \
+            WHERE pcid IN (SELECT pcid FROM ProductChannelMapping \
+                            WHERE upcid in '" + upcid + "')";
+    return executeQuery(sql);
+}
+
+function setInactiveProductChannel(upcid) {
+    sql = "UPDATE ProductChannel \
+            SET status = 'inactive' \
+            WHERE pcid IN (SELECT pcid FROM ProductChannelMapping \
+                            WHERE upcid in '" + upcid + "')";
+    return executeQuery(sql);
+}
+
+function deleteUserProduct(upid) {
+    sql = "DELETE FROM UserProduct where upid = '" + upid + "'" ;
+    return executeQuery(sql);
+}
+
+function deleteUserProductChannel(upcid) {
+    sql = "DELETE FROM UserProductChannel where upcid = '" + upcid + "'" ;
+    return executeQuery(sql);
+}
+
+function getNotificationFlag() {
+    sql = "SELECT flag FROM Notification  \
+            WHERE userid = '" + userid + "' \
+            AND notificationTypeID = '1' ";
+    return executeQuery(sql);
+}
+
+function generateCancelEmail() {
     var param = {
         Destination: {
             ToAddresses: [username]
         },
         Message: {
             Body: {
-                Text: { Data: "Welcome to RatingSuite!"
+                Text: { Data: "A product has been deleted."
 
                 }
             },
-            Subject: { Data: "Welcome Email" }
+            Subject: { Data: "Product Deletion" }
         },
         Source: sourceEmail
     };
@@ -331,21 +304,26 @@ function generateWelcomeParam() {
     return param;
 }
 
-function generateGoodbyeParam() {
-    var param = {
-        Destination: {
-            ToAddresses: [username]
-        },
-        Message: {
-            Body: {
-                Text: { Data: "Sad to see you go!"
+//GET FUNCTIONS
 
-                }
-            },
-            Subject: { Data: "Bye Email" }
-        },
-        Source: sourceEmail
-    };
-
-    return param;
+function getIdPool() {
+    sql = "SELECT idUserPool from UserPool where userid = '" + userid + "'" ;
+    return executeQuery(sql);
 }
+
+function getSubscriptionDetails(idUserPool) {
+    sql = "SELECT s.idProductPlan, s.endDate, s.subscriptionStatus, s.upid, \
+            up.productAlias, upc.upcid, upc.channelName, upc.channelURL \
+             FROM UserProductChannel upc \
+             JOIN UserProduct up ON (upc.upid = up.upid) \
+             JOIN Subscription s ON (up.upid = s.upid) \
+             WHERE s.idUserPool = '" + idUserPool + "'" ;
+    return executeQuery(sql);    
+}
+
+//PUT FUNCTIONS
+
+
+
+//POST FUNCTIONS
+
