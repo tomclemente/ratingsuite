@@ -1,6 +1,6 @@
 # RatingSuite
 
-##Git Versioning
+## Git Versioning
 
 Get latest data from repo
 ```
@@ -14,22 +14,20 @@ git commit -m 'Commit Message'
 git push
 ````
 
+## Compile RatingSuite project
 
-
-##Compile RatingSuite project
-
-Install dependencies. [npm](https://www.npmjs.com/get-npm) must be installed.
+Install project dependencies. [npm](https://www.npmjs.com/get-npm) must be installed.
 
 ```
 npm install
 ```
 
-Build the application  [aws-sam](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) must be installed and configured using `aws-configure`
+Build the serverless application. [aws-sam](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html) must be installed and configured using `aws-configure`
 ```
 sam build
 ```
 
-Deploy changes to AWS
+Deploy changes to AWS. 
 ```
 sam deploy --guided
 ```
