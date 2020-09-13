@@ -13,26 +13,18 @@ var connection = mysql.createConnection({
 
 var sql;
 var userid;
-var username;
+var idUserPool;
 var deletePromises = [];
 var userMasterData;
 
-var userPoolData;
-
-var subscriptionData;
-var notificationData;
-var userProductChannelData;
-var activeSubscriptionData;
-var productChannelMappingData;
-
-var idUserPool;
+//cognito information
+var forg;
+var fname;
+var femail;
 
 exports.handler = async (event, context) => {
 
-    username = event.requestContext.authorizer.claims.username;
-
     let params = JSON.parse(event["body"]);
-    
     console.log('Received event:', JSON.stringify(event, null, 2));
     
     userid = event.requestContext.authorizer.claims.username;
@@ -48,137 +40,145 @@ exports.handler = async (event, context) => {
     };
 
     try {
-        
         body = await new Promise((resolve, reject) => {
-            switch (event.httpMethod) {
 
-                case 'GET':
-                    getIdPool().then(function(result) {
-                        if (result != undefined) {
-                            getSubscriptionDetails(result.idUserPool).then(resolve, reject);
-                        }
-                    }, reject);
-                break;
+            getCognitoUser(function() {              
+                console.log("Cognito UserAttributes: ", data.UserAttributes);
+                fname = data.UserAttributes[1].Value;   
+                femail = data.UserAttributes[2].Value;   
+                forg = "test";     
 
-                case 'POST':
-                
-                break;
-                    
-                case 'PUT':
-                    if (params.plan == 'Sandbox') {
-                        throw new Error("Not authorized.");
-                        
-                    } else {
-                        getUserMasterPUT().then(function(result) {
-                            if (result == undefined) {
-                                throw new Error("Not authorized.");                                
-                                
-                            } else {
-                                if (result.type == 'user') {
-                                    throw new Error("Not authorized.");    
-                                } else if (result.type == 'admin') {
-                                    idUserPool = result.idUserPool;
-                                    
-                                    if (params.updateType == 'Product') {
-                                        if (params.productAlias != undefined && params.upid != undefined) {
-                                            updateUserProductPUT(params.productAlias, params.upid);
-                                        }
-                                    } else if (params.updateType == 'Channel') {
-                                        updateUserProductChannelPUT(params.channelname, 
-                                                                params.channelURL, params.upcid).then(resolve, reject);
-                                        updateProductChannelPUT(params.upcid).then(resolve, reject);
-                                        
-                                    }
-                                }
+            }).then(function() {
+                switch (event.httpMethod) {
+
+                    case 'GET':
+                        getIdPool().then(function(result) {
+                            if (result != undefined) {
+                                getSubscriptionDetails(result.idUserPool).then(resolve, reject);
                             }
-                            
-                        }, reject).then(function() {
-                            var emailParam = generateUpdateEmail(params.upid, params.upcid);
-                            sendEmail(emailParam).then(resolve, reject);
-                        },reject);
-                    }
-                   
-                break;
-                
-                case 'DELETE': 
-                
-                    deletePromises.push(getUserMaster());
+                        }, reject);
+                    break;
+    
+                    case 'POST':
                     
-                    Promise.all(deletePromises).then(function() {
-                        if (userMasterData.userType == 'e') {
-                            throw new Error("Not authorized.");                            
-                        }
+                    break;
                         
+                    case 'PUT':
                         if (params.plan == 'Sandbox') {
-                            getSandboxIdUserPool().then(function(result) {
-                                console.log("getSandboxIdUserPool result: ", result.idUserPool);
-                                if (result.idUserPool != undefined) {
-                                   deleteFromUserPool(result.idUserPool).then(resolve, reject); 
-                                }
-                            }, reject);
+                            throw new Error("Not authorized.");
                             
                         } else {
-                            getAdminIdUserPool().then(function(result) {
-                                console.log("getAdminIdUserPool result: ", result.idUserPool);                                
-                                
-                                if (result == undefined || result == null) {
-                                    throw new Error("Not authorized.");
+                            getUserMasterPUT().then(function(result) {
+                                if (result == undefined) {
+                                    throw new Error("Not authorized.");                                
                                     
                                 } else {
-                                    idUserPool = result.idUserPoo;
-                                    getSubscription(params.upid, result.idUserPool).then(function(result) {
-                                        if (result == undefined || result == null) {
-                                            throw new Error("Not authorized.");
+                                    if (result.type == 'User') {
+                                        throw new Error("Not authorized.");    
+                                    } else if (result.type == 'Admin') {
+                                        idUserPool = result.idUserPool;
+                                        
+                                        if (params.updateType == 'Product') {
+                                            if (params.productAlias != undefined && params.upid != undefined) {
+                                                updateUserProductPUT(params.productAlias, params.upid);
+                                            }
+
+                                        } else if (params.updateType == 'Channel') {
+                                            updateUserProductChannelPUT(params.channelname, 
+                                                                    params.channelURL, params.upcid).then(resolve, reject);
+                                            updateProductChannelPUT(params.upcid).then(resolve, reject);
                                             
-                                        } else {
-                                            if (params.updateType == 'Product' 
-                                                    && (params.upid == undefined || params.upid == null) {
-                                                throw new Error("upid is missing.");
-                                            }
-                                            else if (params.updateType == 'Channel' 
-                                                        && (params.upcid == undefined || params.upcid == null) {
-                                                throw new Error("upcid is missing.");
-                                            }
                                         }
-                                    });
+                                    }
                                 }
-                            });
+                                
+                            }, reject).then(function() {
+                                var emailParam = generateUpdateEmail(params.upid, params.upcid);
+                                sendEmail(emailParam).then(resolve, reject);
+                            },reject);
                         }
-                                                
-                    }).then(function() {
-                        getUserProductChannel(params.upcid, params.upid).then(function(result) {
-                            if (result == undefined) {
-                                if (params.updateType == 'Product' || params.updateType == 'Channel') {
-                                    cancelSubscription(idUserPool, params.upid).then(resolve, reject);
-                                    decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
-                                    setInactiveProductChannel(params.upcid).then(resolve, reject);
-                                    deleteUserProduct(params.upid).then(resolve, reject);
-                                }
-                            }          
-                        }, reject);     
-                                           
-                    }, reject).then(function() {
+                       
+                    break;
+                    
+                    case 'DELETE': 
+                    
+                        deletePromises.push(getUserMaster());
                         
-                        if (params.updateType == 'Channel') {
-                            decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
-                            setInactiveProductChannel(params.upcid).then(resolve, reject);
-                            deleteUserProductChannel(params.upcid).then(resolve, reject);
+                        Promise.all(deletePromises).then(function() {
+                            if (userMasterData.userType == 'e') {
+                                throw new Error("Not authorized.");                            
+                            }
                             
-                        } else if (params.updateType == 'Product') {
-                            getNotificationFlag.then(function(result) {
-                                if (result.flag == '1') {
-                                    var emailParam = generateCancelEmail();
-                                    sendEmail(emailParam).then(resolve,reject);
-                                }
-                            });
-                        }
-                    }, reject);
-                    
-                break;
-                    
-                default:
-                    throw new Error(`Unsupported method "${event.httpMethod}"`);
-            }    
+                            if (params.plan == 'Sandbox') {
+                                getSandboxIdUserPool().then(function(result) {
+                                    console.log("getSandboxIdUserPool result: ", result.idUserPool);
+                                    if (result.idUserPool != undefined) {
+                                       deleteFromUserPool(result.idUserPool).then(resolve, reject); 
+                                    }
+                                }, reject);
+                                
+                            } else {
+                                getAdminIdUserPool().then(function(result) {
+                                    console.log("getAdminIdUserPool result: ", result.idUserPool);                                
+                                    
+                                    if (result == undefined || result == null) {
+                                        throw new Error("Not authorized.");
+                                        
+                                    } else {
+                                        getSubscription(params.upid, result.idUserPool).then(function(result) {
+                                            if (result == undefined || result == null) {
+                                                throw new Error("Not authorized.");
+                                                
+                                            } else {
+                                                if (params.updateType == 'Product' 
+                                                        && (params.upid == undefined || params.upid == null)) {
+                                                    throw new Error("upid is missing.");
+                                                    
+                                                } else if (params.updateType == 'Channel' 
+                                                            && (params.upcid == undefined || params.upcid == null)) {
+                                                    throw new Error("upcid is missing.");
+                                                }
+                                            }
+                                        }, reject);
+                                    }
+                                });
+                            }
+                                                    
+                        }, reject).then(function() {
+                            getUserProductChannel(params.upcid, params.upid).then(function(result) {
+                                if (result == undefined) {
+                                    if (params.updateType == 'Product' || params.updateType == 'Channel') {
+                                        cancelSubscription(idUserPool, params.upid).then(resolve, reject);
+                                        decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
+                                        setInactiveProductChannel(params.upcid).then(resolve, reject);
+                                        deleteUserProduct(params.upid).then(resolve, reject);
+                                    }
+                                }          
+                            }, reject);     
+                                               
+                        }, reject).then(function() {
+                            
+                            if (params.updateType == 'Channel') {
+                                decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
+                                setInactiveProductChannel(params.upcid).then(resolve, reject);
+                                deleteUserProductChannel(params.upcid).then(resolve, reject);
+                                
+                            } else if (params.updateType == 'Product') {
+                                getNotificationFlag.then(function(result) {
+                                    if (result.flag == '1') {
+                                        var emailParam = generateCancelEmail();
+                                        sendEmail(emailParam).then(resolve,reject);
+                                    }
+                                }, reject);
+                            }
+                        }, reject);
+                        
+                    break;
+                        
+                    default:
+                        throw new Error(`Unsupported method "${event.httpMethod}"`);
+                }    
+            }, reject);   
         });
 
     } catch (err) {
@@ -272,16 +272,16 @@ function getSubscription(upid, idUserPool) {
 
 function getUserProductChannel(upcid, upid) {
     sql = "SELECT upcid FROM UserProductChannel \
-            WHERE upcid <> '" + upcid + "' \ 
-            AND upid = '" + upid + "'" ;            
+            WHERE upcid <> '" + upcid + "' \
+            AND upid = '" + upid + "'";
     return executeQuery(sql);
 }
 
 function cancelSubscription(idUserPool, upid) {
     sql = "UPDATE Subscription \
             SET cancelledOn = GETDATE() \
-            WHERE idUserPool = '" + idUserPool + "' \ 
-            AND upid = '" + upid + "'" ;            
+            WHERE idUserPool = '" + idUserPool + "' \
+            AND upid = '" + upid + "'";
     return executeQuery(sql);
 }
 
@@ -323,7 +323,7 @@ function getNotificationFlag() {
 function generateCancelEmail() {
     var param = {
         Destination: {
-            ToAddresses: [username]
+            ToAddresses: [femail]
         },
         Message: {
             Body: {
@@ -379,7 +379,7 @@ function updateUserProductPUT(alias, upid) {
 
 function updateUserProductChannelPUT(channelname, channelURL, upcid) {
     sql = "UPDATE UserProductChannel \
-            SET channelname = '" + channelname + "', \ 
+            SET channelname = '" + channelname + "', \
                 channelURL = '" + channelURL + "', \
                 status = 'NEW' \
             WHERE upcid = '" + upcid + "' ";
