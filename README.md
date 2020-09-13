@@ -32,6 +32,8 @@ Build the serverless application. [aws-sam](https://docs.aws.amazon.com/serverle
 sam build
 ```
 
+`sam build` command also backs up the code to the S3 bucket.
+
 Deploy changes to AWS. 
 ```
 sam deploy --guided
