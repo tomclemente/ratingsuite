@@ -2,12 +2,12 @@
 
 ## Git Versioning
 
-Clone the project from scratch
+Clone the project from scratch.
 ```
 git clone https://github.com/tomclemente/ratingsuite
 ```
 
-Get latest data from the repo
+Get the latest data from the repo.
 ```
 git pull
 ```
