@@ -1,7 +1,7 @@
 var mysql = require('mysql');
 var AWS = require('aws-sdk');
 
-var sourceEmail = "noreply@ratingsuite.com";
+var sourceEmail = process.env.SOURCE_EMAIL;
 
 var connection = mysql.createConnection({
     host: process.env.RDS_ENDPOINT,
@@ -12,37 +12,29 @@ var connection = mysql.createConnection({
 
 var sql;
 var userid;
-var username;
-var deletePromises = [];
+
 var userPoolData;
 var userMasterData;
 var subscriptionData;
 var notificationData;
-var userProductChannelData;
-var activeSubscriptionData;
-var productChannelMappingData;
-
 var UPIDdata = [];
+var deletePromises = [];
 
-
+//cognito information
 var org;
 var name;
 var email;
 
-
 exports.handler = async (event, context) => {
 
-    username = event.requestContext.authorizer.claims.username;
-    userid = event.requestContext.authorizer.claims.username;
-    
     let params = JSON.parse(event["body"]);
-    
     console.log('Received event:', JSON.stringify(event, null, 2));
-    
-    if (username == null) {
-        throw new Error("Username missing. Not authenticated.");
+
+    userid = event.requestContext.authorizer.claims.username;
+    if (userid == null) {
+        throw new Error("Username is missing. Not authenticated.");
     }
-    
+
     let body;
     let statusCode = '200';
 
@@ -50,87 +42,95 @@ exports.handler = async (event, context) => {
         'Content-Type': 'application/json',
     };
 
-    try {
-        
+    try {      
         body = await new Promise((resolve, reject) => {
 
-            switch (event.httpMethod) {
+            getCognitoUser(function() {              
+                console.log("Cognito UserAttributes: ", data.UserAttributes);
+                name = data.UserAttributes[1].Value;   
+                email = data.UserAttributes[2].Value;   
+                org = "test";     
 
-                case 'GET':
-                    sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, n.flag \
-                            FROM UserMaster um \
-                            INNER JOIN UserPool up on um.userid = up.userid \
-                            INNER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
-                            WHERE um.userid = '" + userid + "'";
-                    executeQuery(sql).then(resolve, reject);
-                break;
+            }).then(function() {
 
-                case 'POST': 
-                    getCognitoUser().then(function() {
+                switch (event.httpMethod) {
+                    case 'GET':
+                        sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, n.flag \
+                                FROM UserMaster um \
+                                INNER JOIN UserPool up on um.userid = up.userid \
+                                INNER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
+                                WHERE um.userid = '" + userid + "'";
+                        executeQuery(sql).then(resolve, reject);
+                    break;
+    
+                    case 'POST': 
+
                         insertUserMaster(name, org).then(function() {
-                            insertNotification();                        
+                            insertNotification().then(resolve, reject);                        
                             var emailParam = generateWelcomeParam();
-                            sendEmail(emailParam).then(resolve,reject);
-                        });
-                    });
-                break;
-                    
-                case 'PUT':
-                    updateUserAttribute(params, userid).then(function() {
-                        sql = "UPDATE UserMaster \
-                                SET organization = '" + params.organization + "', \
-                                name = '" + params.name + "' \
-                                WHERE userid = '" + username + "'";
-                        executeQuery(sql).then(resolve, reject);  
-                    }, reject);
-                break;
-                
-                case 'DELETE': 
-                    deletePromises.push(getUserMaster());
-                    deletePromises.push(getUserPool());
-                    deletePromises.push(getNotification());
-                    deletePromises.push(getAllUPID());
-                    deletePromises.push(getCognitoUser());
-                   
-                    Promise.all(deletePromises).then(function() {
-                        if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
-                            getSubscription(userPoolData.idUserPool).then(function() {
-                                if ((userPoolData.type == 'user' && 
-                                    subscriptionData != undefined && subscriptionData.subscriptionType =='pp1') ||
-                                    (userPoolData.type == 'admin' && userMasterData.usertype != 'E')) {
-                                    
-                                    updateCancelledSubscription(userPoolData.idUserPool).then(resolve,reject);
-                                }
-                            });
-                        }
-                    }).then(function() { //delete all associated pcid and upid
-                        if (UPIDdata != undefined) {
-                            for (var x = 0; x < UPIDdata.length; x++) {
-                                getAllPCID(UPIDdata[x]).then(function(data) {
-                                    if (data != undefined) {
-                                        unsubscribeProductChannel(data.upid);
-                                        deleteUserProduct(data.upid);
-                                    }
-                                });
-                            }
-                        }
-                        
-                    }).then(function() { 
-                        deleteUserMaster();
-                        deleteCognitoUser();
+                            sendEmail(emailParam).then(resolve, reject);
+                        }, reject);
 
-                    }).then(function() {
-                        if (notificationData != undefined && notificationData.flag == '1') {                            
-                            var emailParam = generateGoodbyeParam();
-                            sendEmail(emailParam).then(resolve,reject);
-                        }      
-                    });    
+                    break;
+                        
+                    case 'PUT':
+                        updateUserAttribute(params, userid).then(function() {
+                            sql = "UPDATE UserMaster \
+                                    SET organization = '" + params.organization + "', \
+                                    name = '" + params.name + "' \
+                                    WHERE userid = '" + userid + "'";
+                            executeQuery(sql).then(resolve, reject);  
+                        }, reject);
+                    break;
                     
-                break;
-                    
-                default:
-                    throw new Error(`Unsupported method "${event.httpMethod}"`);
-            }    
+                    case 'DELETE': 
+                        deletePromises.push(getUserMaster());
+                        deletePromises.push(getUserPool());
+                        deletePromises.push(getNotification());
+                        deletePromises.push(getAllUPID());
+                        deletePromises.push(getCognitoUser());
+                       
+                        Promise.all(deletePromises).then(function() {
+                            if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
+                                getSubscription(userPoolData.idUserPool).then(function() {
+                                    if ((userPoolData.type == 'user' && 
+                                        subscriptionData != undefined && subscriptionData.subscriptionType =='pp1') ||
+                                        (userPoolData.type == 'admin' && userMasterData.usertype != 'E')) {
+                                        
+                                        updateCancelledSubscription(userPoolData.idUserPool).then(resolve,reject);
+                                    }
+                                }, resolve);
+                            }
+
+                        }, reject).then(function() { //delete all associated pcid and upid
+                            if (UPIDdata != undefined) {
+                                for (var x = 0; x < UPIDdata.length; x++) {
+                                    getAllPCID(UPIDdata[x]).then(function(data) {
+                                        if (data != undefined) {
+                                            unsubscribeProductChannel(data.upid).then(resolve, reject);
+                                            deleteUserProduct(data.upid).then(resolve, reject);
+                                        }
+                                    }, reject);
+                                }
+                            } 
+
+                        }, reject).then(function() { 
+                            deleteUserMaster().then(function() {
+                                deleteCognitoUser().then(function() {
+                                    if (notificationData != undefined && notificationData.flag == '1') {                            
+                                        var emailParam = generateGoodbyeParam();
+                                        sendEmail(emailParam).then(resolve, reject);
+                                    }      
+                                }, reject);
+                            }, reject);
+                        }, reject);   
+                        
+                    break;
+                        
+                    default:
+                        throw new Error(`Unsupported method "${event.httpMethod}"`);
+                }    
+            }, reject);
         });
 
     } catch (err) {
@@ -169,27 +169,6 @@ function unsubscribeProductChannel(pcid) {
             WHERE pcid  = '" + pcid + "'";
     return executeQuery(sql);  
 }
-
-// function updateProductChannel(pcid) {
-//     sql = "UPDATE ProductChannel SET status = 'inactive' where pcid = '" + pcid + "'";
-//     return executeQuery(sql);
-// }
-
-// function getUserProductChannel(upid) {
-//     sql = "SELECT * FROM UserProductChannel where upid = '" + upid + "'";
-//     return executeQuery(sql).then(function(result) {
-//         userProductChannelData = result[0];
-//         console.log("userProductChannelData: ", userProductChannelData);
-//     });
-// }
-
-// function getProductChannelMapping(upcid) {
-//     sql = "SELECT * FROM ProductChannelMapping where upcid = '" + upcid + "'";
-//     return executeQuery(sql).then(function(result) {
-//         productChannelMappingData = result[0];
-//         console.log("productChannelMappingData: ", productChannelMappingData);
-//     });
-// }
 
 function deleteUserMaster() {
     sql = "DELETE FROM UserMaster where userid = '" + userid + "'";
@@ -240,39 +219,21 @@ function getCognitoUser() {
         UserPoolId: process.env.COGNITO_POOLID,
         Username: userid, 
         
-    }).promise().then(function(data) {
-        console.log("UserAttributes", data.UserAttributes);
-        name = data.UserAttributes[1].Value;   
-        email = data.UserAttributes[2].Value;   
-        org = "test";
-    });
+    }).promise();
 }
 
 function deleteCognitoUser() {
     const cognito = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
-    cognito.adminDeleteUser({
+    return cognito.adminDeleteUser({
         UserPoolId: process.env.COGNITO_POOLID,
         Username: userid,
-    });
+    }).promise();
 }
-
-// function getActiveSubscription(id) {    
-//     sql = "SELECT * FROM Subscription where upid = '" + id + "' and subscriptionStatus = 'active'";
-//     return executeQuery(sql).then(function(result) {
-//         subscriptionData = result[0];
-//         console.log("activeSubscriptionData: ", activeSubscriptionData);
-//     });
-// }
 
 function deleteUserProduct(id) {
     sql = "DELETE FROM UserProduct  where upid = '" + id + "'";
     return executeQuery(sql);
 }
-
-// function deleteProductMaster(id) {
-//     sql = "DELETE FROM ProductMaster  where upid = '" + id + "'";
-//     return executeQuery(sql);
-// }
 
 function executeQuery(sql) {
     return new Promise((resolve, reject) => {
@@ -287,7 +248,7 @@ function executeQuery(sql) {
     });
 };
 
-function updateUserAttribute(params, username){
+function updateUserAttribute(params, userid){
     let cognitoISP = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
     return new Promise((resolve, reject) => {
         console.log("params: ", params);
@@ -302,7 +263,7 @@ function updateUserAttribute(params, username){
             // }
             ],
             UserPoolId: process.env.COGNITO_POOLID,
-            Username: username
+            Username: userid
         };
 
         cognitoISP.adminUpdateUserAttributes(attrib, (err, data) => err ? 
