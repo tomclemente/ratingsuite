@@ -225,6 +225,16 @@ function sendEmail(params) {
     });
 };
 
+function getCognitoUser() {
+    const cognito = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
+
+    return cognito.adminGetUser({
+        UserPoolId: process.env.COGNITO_POOLID,
+        Username: userid, 
+        
+    }).promise();
+}
+
 //DELETE FUNCTIONS
 
 function getUserMaster() {
