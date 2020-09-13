@@ -21,9 +21,9 @@ var UPIDdata = [];
 var deletePromises = [];
 
 //cognito information
-var org;
-var name;
-var email;
+var forg;
+var fname;
+var femail;
 
 exports.handler = async (event, context) => {
 
@@ -47,9 +47,9 @@ exports.handler = async (event, context) => {
 
             getCognitoUser(function() {              
                 console.log("Cognito UserAttributes: ", data.UserAttributes);
-                name = data.UserAttributes[1].Value;   
-                email = data.UserAttributes[2].Value;   
-                org = "test";     
+                fname = data.UserAttributes[1].Value;   
+                femail = data.UserAttributes[2].Value;   
+                forg = "test";     
 
             }).then(function() {
 
@@ -65,7 +65,7 @@ exports.handler = async (event, context) => {
     
                     case 'POST': 
 
-                        insertUserMaster(name, org).then(function() {
+                        insertUserMaster(fname, forg).then(function() {
                             insertNotification().then(resolve, reject);                        
                             var emailParam = generateWelcomeParam();
                             sendEmail(emailParam).then(resolve, reject);
@@ -256,12 +256,11 @@ function updateUserAttribute(params, userid){
             UserAttributes: [{
                     Name: "name",
                     Value: params.name 
-            }
-            // ,{
-            //         Name: "organization",
-            //         Value: params.organization
-            // }
-            ],
+            },
+            {
+                    Name: "custom:organization",
+                    Value: params.organization
+            }],
             UserPoolId: process.env.COGNITO_POOLID,
             Username: userid
         };
@@ -310,7 +309,7 @@ function sendEmail(params) {
 function generateWelcomeParam() {
     var param = {
         Destination: {
-            ToAddresses: [email]
+            ToAddresses: [femail]
         },
         Message: {
             Body: {
@@ -329,7 +328,7 @@ function generateWelcomeParam() {
 function generateGoodbyeParam() {
     var param = {
         Destination: {
-            ToAddresses: [email]
+            ToAddresses: [femail]
         },
         Message: {
             Body: {
