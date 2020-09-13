@@ -1,5 +1,7 @@
 # RatingSuite
 
+This is a serverless backend API built on Nodejs and deployed on AWS Lambda.
+
 ## Git Versioning
 
 Clone the project from scratch.
