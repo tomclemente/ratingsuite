@@ -2,19 +2,24 @@
 
 ## Git Versioning
 
-Get latest data from repo
+Clone the project from scratch
+```
+git clone https://github.com/tomclemente/ratingsuite
+```
+
+Get latest data from the repo
 ```
 git pull
 ```
 
-Commit and Push changes
+**commit** and **push** the changes
 ```
 git add app.js
 git commit -m 'Commit Message'
 git push
 ````
 
-## Compile RatingSuite project
+## Build and Deploy RatingSuite project
 
 Install project dependencies. [npm](https://www.npmjs.com/get-npm) must be installed.
 
