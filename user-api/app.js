@@ -118,10 +118,9 @@ exports.handler = async (event, context) => {
                         }, reject).then(function() { 
                             deleteUserMaster().then(function() {
                                 deleteCognitoUser().then(function() {
-                                    if (notificationData != undefined && notificationData.flag == '1') {                            
                                         var emailParam = generateGoodbyeParam();
                                         sendEmail(emailParam).then(resolve, reject);
-                                    }      
+                                          
                                 }, reject);
                             }, reject);
                         }, reject);   
