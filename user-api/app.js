@@ -94,9 +94,8 @@ exports.handler = async (event, context) => {
                         Promise.all(deletePromises).then(function() {
                             if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
                                 getSubscription(userPoolData.idUserPool).then(function() {
-                                    if ((userPoolData.type == 'user' && 
-                                        subscriptionData != undefined && subscriptionData.subscriptionType =='pp1') ||
-                                        (userPoolData.type == 'admin' && userMasterData.usertype != 'E')) {
+                                    if (( subscriptionData != undefined) ||
+                                        (userMasterData.usertype != 'E')) {
                                         
                                         updateCancelledSubscription(userPoolData.idUserPool).then(resolve,reject);
                                     }
@@ -151,7 +150,7 @@ exports.handler = async (event, context) => {
 function getAllUPID() {
     sql = "SELECT s.upid FROM Subscription s \
             JOIN UserPool up ON (s.idUserPool = up.idUserPool) \
-            WHERE up.userid = '" + userid + "'";                    
+            WHERE up.type = "admin" and up.userid = '" + userid + "'";                    
     return executeQuery(sql).then(function(result) {
         UPIDdata = result[0];
         console.log("UPIDdata: ", UPIDdata);
@@ -185,7 +184,7 @@ function getUserMaster() {
 }
 
 function getUserPool() {
-    sql = "SELECT * FROM UserPool where userid = '" + userid + "'";
+    sql = "SELECT * FROM UserPool where up = "admin" and userid = '" + userid + "'";
     return executeQuery(sql).then(function(result) {
         userPoolData = result[0];
         console.log("userPoolData: ", userPoolData);
