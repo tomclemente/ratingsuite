@@ -262,11 +262,11 @@ function updateUserAttribute(params, userid){
         console.log("params: ", params);
         let attrib = {
             UserAttributes: [{
-                    Name: "name",
+                    Name: "custom:name",
                     Value: params.name 
             },
             {
-                    Name: "custom:organization",
+                    Name: "custom:Organization",
                     Value: params.organization
             }],
             UserPoolId: process.env.COGNITO_POOLID,
