@@ -42,7 +42,7 @@ exports.handler = async (event, context) => {
     try {
         body = await new Promise((resolve, reject) => {
 
-            getCognitoUser(function() {              
+            getCognitoUser(function(data) {              
                 console.log("Cognito UserAttributes: ", data.UserAttributes);
                 fname = data.UserAttributes[1].Value;   
                 femail = data.UserAttributes[2].Value;   
