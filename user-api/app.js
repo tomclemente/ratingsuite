@@ -55,10 +55,11 @@ exports.handler = async (event, context) => {
 
                 switch (event.httpMethod) {
                     case 'GET':
-                        sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, n.flag \
+                        sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, nt.desc,n.flag \
                                 FROM UserMaster um \
                                 INNER JOIN UserPool up on um.userid = up.userid \
                                 INNER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
+                                INNER JOIN NotificationType nt on n.notificationTypeID = nt.notificationTypeID \
                                 WHERE um.userid = '" + userid + "'";
                         executeQuery(sql).then(resolve, reject);
                     break;
