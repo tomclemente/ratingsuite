@@ -108,6 +108,7 @@ exports.handler = async (event, context) => {
                                     getAllPCID(UPIDdata[x]).then(function(data) {
                                         if (data != undefined) {
                                             unsubscribeProductChannel(data.upid).then(resolve, reject);
+                                            updateProductChannel(data.upid).then(resolve, reject);
                                             deleteUserProduct(data.upid).then(resolve, reject);
                                         }
                                     }, reject);
@@ -150,7 +151,7 @@ exports.handler = async (event, context) => {
 function getAllUPID() {
     sql = "SELECT s.upid FROM Subscription s \
             JOIN UserPool up ON (s.idUserPool = up.idUserPool) \
-            WHERE up.type = "admin" and up.userid = '" + userid + "'";                    
+            WHERE up.type = 'admin' and up.userid = '" + userid + "'";                    
     return executeQuery(sql).then(function(result) {
         UPIDdata = result[0];
         console.log("UPIDdata: ", UPIDdata);
@@ -170,6 +171,13 @@ function unsubscribeProductChannel(pcid) {
     return executeQuery(sql);  
 }
 
+function updateProductChannel(pcid) {
+    sql = "UPDATE ProductChannel \
+            SET status = 'inactive' \
+            WHERE nActiveUsers = 0 and pcid  = '" + pcid + "'";
+    return executeQuery(sql);  
+}
+
 function deleteUserMaster() {
     sql = "DELETE FROM UserMaster where userid = '" + userid + "'";
     return executeQuery(sql);
@@ -184,7 +192,7 @@ function getUserMaster() {
 }
 
 function getUserPool() {
-    sql = "SELECT * FROM UserPool where up = "admin" and userid = '" + userid + "'";
+    sql = "SELECT * FROM UserPool where type = 'admin' and userid = '" + userid + "'";
     return executeQuery(sql).then(function(result) {
         userPoolData = result[0];
         console.log("userPoolData: ", userPoolData);
@@ -208,7 +216,7 @@ function getNotification() {
 }
 
 function updateCancelledSubscription(idUserPool) {    
-    sql = "UPDATE Subscription SET status = 'Cancelled' where idUserPool = '" + idUserPool + "'";
+    sql = "UPDATE Subscription SET status = 'cancelled' where idUserPool = '" + idUserPool + "'";
     return executeQuery(sql);
 }
 
