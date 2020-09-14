@@ -57,9 +57,9 @@ exports.handler = async (event, context) => {
                     case 'GET':
                         sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, up.type, nt.desc,n.flag \
                                 FROM UserMaster um \
-                                INNER JOIN UserPool up on um.userid = up.userid \
-                                INNER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
-                                INNER JOIN NotificationType nt on n.notificationTypeID = nt.notificationTypeID \
+                                LEFT OUTER JOIN UserPool up on um.userid = up.userid \
+                                LEFT OUTER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
+                                LEFT OUTER JOIN NotificationType nt on n.notificationTypeID = nt.notificationTypeID \
                                 WHERE um.userid = '" + userid + "'";
                         executeQuery(sql).then(resolve, reject);
                     break;
