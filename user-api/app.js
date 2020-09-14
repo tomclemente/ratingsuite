@@ -108,7 +108,7 @@ exports.handler = async (event, context) => {
                                     getAllPCID(UPIDdata[x]).then(function(data) {
                                         if (data != undefined) {
                                             unsubscribeProductChannel(data.upid).then(resolve, reject);
-                                            updateProductChannel(data.upid).then(resolve, reject);
+                                             updateProductChannel(data.upid).then(resolve, reject);
                                             deleteUserProduct(data.upid).then(resolve, reject);
                                         }
                                     }, reject);
