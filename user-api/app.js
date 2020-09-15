@@ -45,7 +45,7 @@ exports.handler = async (event, context) => {
     try {      
         body = await new Promise((resolve, reject) => {
 
-            getCognitoUser(function(data) {              
+            getCognitoUser().then(function(data) {              
                 console.log("Cognito UserAttributes: ", data.UserAttributes);
                 fname = data.UserAttributes[1].Value;   
                 femail = data.UserAttributes[2].Value;   
@@ -65,7 +65,7 @@ exports.handler = async (event, context) => {
     
                     case 'POST': 
 
-                        insertUserMaster(fname, forg).then(function() {
+                        insertUserMaster(userid, forg).then(function() {
                             insertNotification().then(resolve, reject);                        
                             var emailParam = generateWelcomeParam();
                             sendEmail(emailParam).then(resolve, reject);
@@ -88,7 +88,6 @@ exports.handler = async (event, context) => {
                         deletePromises.push(getUserPool());
                         deletePromises.push(getNotification());
                         deletePromises.push(getAllUPID());
-                        deletePromises.push(getCognitoUser());
                        
                         Promise.all(deletePromises).then(function() {
                             if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
@@ -315,7 +314,7 @@ function sendEmail(params) {
 function generateWelcomeParam() {
     var param = {
         Destination: {
-            ToAddresses: [femail]
+            ToAddresses: [userid]
         },
         Message: {
             Body: {
@@ -334,7 +333,7 @@ function generateWelcomeParam() {
 function generateGoodbyeParam() {
     var param = {
         Destination: {
-            ToAddresses: [femail]
+            ToAddresses: [userid]
         },
         Message: {
             Body: {
