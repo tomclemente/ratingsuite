@@ -47,9 +47,10 @@ exports.handler = async (event, context) => {
 
             getCognitoUser().then(function(data) {              
                 console.log("Cognito UserAttributes: ", data.UserAttributes);
-                fname = data.UserAttributes[1].Value;   
-                femail = data.UserAttributes[2].Value;   
-                forg = "test";     
+
+                fname = data.UserAttributes[2].Value;                   
+                forg = data.UserAttributes[3].Value;
+                femail = data.UserAttributes[4].Value;   
 
             }).then(function() {
 
@@ -65,7 +66,7 @@ exports.handler = async (event, context) => {
     
                     case 'POST': 
 
-                        insertUserMaster(userid, forg).then(function() {
+                        insertUserMaster(fname, forg).then(function() {
                             insertNotification().then(resolve, reject);                        
                             var emailParam = generateWelcomeParam();
                             sendEmail(emailParam).then(resolve, reject);
