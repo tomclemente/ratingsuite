@@ -113,10 +113,14 @@ exports.handler = async (event, context) => {
 
                                     getAllPCID(UPIDdata[x].upid).then(function(data) {
                                         if (data != undefined) {
-                                            let pcid = data[0].pcid;
+                                            
+                                            for (var y = 0; y < data.length; y++) {
+
+                                            let pcid = data[y].pcid;
                                             unsubscribeProductChannel(pcid).then(resolve, reject);
                                             updateProductChannel(pcid).then(resolve, reject);
                                             
+                                            }
                                         }
                                     
                                     }, reject);
