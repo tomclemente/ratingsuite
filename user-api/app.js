@@ -119,8 +119,9 @@ exports.handler = async (event, context) => {
                                             
                                         }
                                     
-                                    deleteUserProduct(UPIDdata[x].upid).then(resolve, reject);
                                     }, reject);
+
+                                    deleteUserProduct(UPIDdata[x].upid).then(resolve, reject);
                                 }
                             } 
 
