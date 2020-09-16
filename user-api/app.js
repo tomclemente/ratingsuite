@@ -149,7 +149,7 @@ exports.handler = async (event, context) => {
 function getAllUPID() {
     sql = "SELECT s.upid FROM Subscription s \
             JOIN UserPool up ON (s.idUserPool = up.idUserPool) \
-            WHERE up.type = 'admin' and up.userid = '" + userid + "'";                    
+            WHERE up.type = 'ADMIN' and up.userid = '" + userid + "'";                    
     return executeQuery(sql).then(function(result) {
         UPIDdata = result[0];
         console.log("UPIDdata: ", UPIDdata);
