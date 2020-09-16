@@ -47,11 +47,17 @@ exports.handler = async (event, context) => {
 
             getCognitoUser().then(function(data) {              
                 console.log("Cognito UserAttributes: ", data.UserAttributes);
+                for (var x = 0; x < data.UserAttributes.length; x++) {
+                    let attrib = data.UserAttributes[x];
 
-                fname = data.UserAttributes[2].Value;                   
-                forg = data.UserAttributes[3].Value;
-                femail = data.UserAttributes[4].Value;   
-
+                    if (attrib.Name == 'custom:name') {
+                        fname = attrib.Value;
+                    } else if (attrib.Name == 'email') {
+                        femail = attrib.Value;
+                    } else if (attrib.Name == 'custom:Organization') {
+                        forg = attrib.Value;
+                    }
+                }  
             }).then(function() {
 
                 switch (event.httpMethod) {
@@ -89,7 +95,7 @@ exports.handler = async (event, context) => {
                         deletePromises.push(getUserPool());
                         deletePromises.push(getNotification());
                         deletePromises.push(getAllUPID());
-                       
+
                         Promise.all(deletePromises).then(function() {
                             if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
                                 getSubscription(userPoolData.idUserPool).then(function() {
@@ -104,11 +110,12 @@ exports.handler = async (event, context) => {
                         }, reject).then(function() { //delete all associated pcid and upid
                             if (UPIDdata != undefined) {
                                 for (var x = 0; x < UPIDdata.length; x++) {
-                                    getAllPCID(UPIDdata[x]).then(function(data) {
+                                    getAllPCID(UPIDdata[x].upid).then(function(data) {
                                         if (data != undefined) {
-                                            unsubscribeProductChannel(data.upid).then(resolve, reject);
-                                             updateProductChannel(data.upid).then(resolve, reject);
-                                            deleteUserProduct(data.upid).then(resolve, reject);
+                                            let pcid = data[0].pcid;
+                                            unsubscribeProductChannel(pcid).then(resolve, reject);
+                                            updateProductChannel(pcid).then(resolve, reject);
+                                            deleteUserProduct(pcid).then(resolve, reject);
                                         }
                                     }, reject);
                                 }
@@ -151,7 +158,7 @@ function getAllUPID() {
             JOIN UserPool up ON (s.idUserPool = up.idUserPool) \
             WHERE up.type = 'ADMIN' and up.userid = '" + userid + "'";                    
     return executeQuery(sql).then(function(result) {
-        UPIDdata = result[0];
+        UPIDdata = result;
         console.log("UPIDdata: ", UPIDdata);
     });
 }
