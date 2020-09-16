@@ -171,7 +171,7 @@ function unsubscribeProductChannel(pcid) {
 
 function updateProductChannel(pcid) {
     sql = "UPDATE ProductChannel \
-            SET status = 'inactive' \
+            SET status = 'INACTIVE' \
             WHERE nActiveUsers = 0 and pcid  = '" + pcid + "'";
     return executeQuery(sql);  
 }
@@ -190,7 +190,7 @@ function getUserMaster() {
 }
 
 function getUserPool() {
-    sql = "SELECT * FROM UserPool where type = 'admin' and userid = '" + userid + "'";
+    sql = "SELECT * FROM UserPool where type = 'ADMIN' and userid = '" + userid + "'";
     return executeQuery(sql).then(function(result) {
         userPoolData = result[0];
         console.log("userPoolData: ", userPoolData);
@@ -214,7 +214,7 @@ function getNotification() {
 }
 
 function updateCancelledSubscription(idUserPool) {    
-    sql = "UPDATE Subscription SET status = 'cancelled' where idUserPool = '" + idUserPool + "'";
+    sql = "UPDATE Subscription SET subscriptionStatus = 'CANCELLED' where idUserPool = '" + idUserPool + "'";
     return executeQuery(sql);
 }
 
