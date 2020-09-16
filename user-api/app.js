@@ -110,13 +110,16 @@ exports.handler = async (event, context) => {
                         }, reject).then(function() { //delete all associated pcid and upid
                             if (UPIDdata != undefined) {
                                 for (var x = 0; x < UPIDdata.length; x++) {
+
                                     getAllPCID(UPIDdata[x].upid).then(function(data) {
                                         if (data != undefined) {
                                             let pcid = data[0].pcid;
                                             unsubscribeProductChannel(pcid).then(resolve, reject);
                                             updateProductChannel(pcid).then(resolve, reject);
-                                            deleteUserProduct(pcid).then(resolve, reject);
+                                            
                                         }
+                                    
+                                    deleteUserProduct(UPIDdata[x].upid).then(resolve, reject);
                                     }, reject);
                                 }
                             } 
@@ -171,7 +174,7 @@ function getAllPCID(upid) {
 
 function unsubscribeProductChannel(pcid) {
     sql = "UPDATE ProductChannel \
-            SET nActiveUsers = nActiveUser - 1 \
+            SET nActiveUsers = nActiveUsers - 1 \
             WHERE pcid  = '" + pcid + "'";
     return executeQuery(sql);  
 }
