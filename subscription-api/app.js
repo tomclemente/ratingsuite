@@ -13,9 +13,10 @@ var connection = mysql.createConnection({
 
 var sql;
 var userid;
-var idUserPool;
+var fidUserPool;
 var deletePromises = [];
 var userMasterData;
+var notificationData;
 
 //cognito information
 var forg;
@@ -54,12 +55,83 @@ exports.handler = async (event, context) => {
                     case 'GET':
                         getIdPool().then(function(result) {
                             if (result != undefined) {
-                                getSubscriptionDetails(result.idUserPool).then(resolve, reject);
+                                getSubscriptionDetails(result[0].idUserPool).then(resolve, reject);
                             }
                         }, reject);
                     break;
     
                     case 'POST':
+                        var idPool;
+                        var upid; 
+
+                        if (plan == 'Sandbox') {
+                            getUserTypePOST.then(function(result) {
+
+                                if (result[0].userType != 'NEW') {
+                                    throw new Error("Not authorized");
+
+                                } else {
+                                    getSandboxIdUserPool().then(function(data) {
+                                        if (data != undefined && data.length > 0) {
+                                            insertUserPoolPOST(data[0].idUserPool).then(resolve, reject);
+                                            updateUserBeta().then(resolve, reject);
+                                        }                                        
+                                    }).then(function() {
+                                        getNotification().then(function() {
+                                            if (notificationData.flag == '1') {
+                                                var emailParam = generateSandboxEmail();
+                                                sendEmail(emailParam).then(resolve, reject);
+                                            }
+                                        }, reject);
+                                    }, reject);
+                                }
+                            }, reject);
+                        }
+
+                        if (params.plan == undefined || params.plan == null) {
+                            getUserPoolTypePOST().then(function(data) {
+                                if (data[0].type == "USER") {
+                                    throw new Error("Not authorized");
+
+                                } else if (data == undefined) {
+                                    addAdminToUserPoolPOST().then(resolve,reject);
+                                    updateUserMasterPOST().then(resolve,reject);
+                                    getNewIdUserPoolPOST().then(function(res) {
+                                        idPool = res[0].idUserPool;
+                                    }, reject);
+
+                                } else if (data != undefined) {
+                                    idPool = data[0].idUserPool
+                                }
+                                
+                            }, reject).then(function() {
+                                if (params.upid == undefined || params.upid == null) { //New Product
+                                    createNewProductPOST(params).then(function() {
+                                        getUpIDPOST().then(function(result) {
+
+                                            if (result != undefined) {
+                                                upid = result[0].upid;
+                                                createUserProductChannelPOST(upid, params).then(resolve,reject);
+                                                createSubscriptionPOST(upid, idPool).then(resolve,reject);
+                                            }
+                                        }, reject);
+                                    }, reject);
+                                }
+
+                            }, reject).then(function() {
+                                if (params.upcid != null) { //New Channel
+                                    createUserProductChannelPOST(params.upid, params).then(resolve,reject);
+                                }
+
+                            }, reject).then(function() {
+                                if (params.upid == undefined) {
+                                    params.upid = upid;
+                                }
+                                var emailParam = generatePOSTEmail(params);
+                                sendEmail(emailParam).then(resolve, reject);
+                                
+                            },reject);
+                        }
                     
                     break;
                         
@@ -73,10 +145,13 @@ exports.handler = async (event, context) => {
                                     throw new Error("Not authorized.");                                
                                     
                                 } else {
-                                    if (result.type == 'User') {
+                                    let type = result[0].type;
+
+                                    if (type == 'User') {
                                         throw new Error("Not authorized.");    
-                                    } else if (result.type == 'Admin') {
-                                        idUserPool = result.idUserPool;
+
+                                    } else if (type == 'Admin') {
+                                        idUserPool = result[0].idUserPool;
                                         
                                         if (params.updateType == 'Product') {
                                             if (params.productAlias != undefined && params.upid != undefined) {
@@ -111,22 +186,24 @@ exports.handler = async (event, context) => {
                             
                             if (params.plan == 'Sandbox') {
                                 getSandboxIdUserPool().then(function(result) {
-                                    console.log("getSandboxIdUserPool result: ", result.idUserPool);
-                                    if (result.idUserPool != undefined) {
-                                       deleteFromUserPool(result.idUserPool).then(resolve, reject); 
+                                    console.log("getSandboxIdUserPool result: ", result);
+                                    if (result != undefined) {
+                                        fidUserPool = result[0].idUserPool;
+                                        deleteFromUserPool(fidUserPool).then(resolve, reject); 
                                     }
                                 }, reject);
                                 
                             } else {
                                 getAdminIdUserPool().then(function(result) {
-                                    console.log("getAdminIdUserPool result: ", result.idUserPool);                                
+                                    console.log("getAdminIdUserPool result: ", result);                                
                                     
                                     if (result == undefined || result == null) {
                                         throw new Error("Not authorized.");
                                         
                                     } else {
-                                        getSubscription(params.upid, result.idUserPool).then(function(result) {
-                                            if (result == undefined || result == null) {
+                                        fidUserPool = result[0].idUserPool;
+                                        getSubscription(params.upid, fidUserPool).then(function(data) {
+                                            if (data == undefined || data == null) {
                                                 throw new Error("Not authorized.");
                                                 
                                             } else {
@@ -148,7 +225,7 @@ exports.handler = async (event, context) => {
                             getUserProductChannel(params.upcid, params.upid).then(function(result) {
                                 if (result == undefined) {
                                     if (params.updateType == 'Product' || params.updateType == 'Channel') {
-                                        cancelSubscription(idUserPool, params.upid).then(resolve, reject);
+                                        cancelSubscription(fidUserPool, params.upid).then(resolve, reject);
                                         decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
                                         setInactiveProductChannel(params.upcid).then(resolve, reject);
                                         deleteUserProduct(params.upid).then(resolve, reject);
@@ -164,8 +241,8 @@ exports.handler = async (event, context) => {
                                 deleteUserProductChannel(params.upcid).then(resolve, reject);
                                 
                             } else if (params.updateType == 'Product') {
-                                getNotificationFlag.then(function(result) {
-                                    if (result.flag == '1') {
+                                getNotification().then(function() {
+                                    if (notificationData.flag == '1') {
                                         var emailParam = generateCancelEmail();
                                         sendEmail(emailParam).then(resolve,reject);
                                     }
@@ -235,6 +312,15 @@ function getCognitoUser() {
     }).promise();
 }
 
+function getNotification() {
+    sql = "SELECT * FROM Notification where userid = '" + userid + "'";
+    return executeQuery(sql).then(function(result) {
+        notificationData = result[0];
+        console.log("notificationData: ", notificationData);
+    });
+}
+
+
 //DELETE FUNCTIONS
 
 function getUserMaster() {
@@ -249,9 +335,9 @@ function getSandboxIdUserPool() {
     sql = "SELECT idUserPool \
             FROM UserPool up \
             JOIN Subscription s ON (s.idUserPool = up.idUserPool) \
-            WHERE up.type = 'admin' \
-            AND s.idProductPlan = 'pp1' \
-            AND s.subscriptionStatus = 'active' ";                    
+            WHERE up.type = 'ADMIN' \
+            AND s.idProductPlan = 'PP1' \
+            AND s.subscriptionStatus = 'ACTIVE' ";                    
     return executeQuery(sql);
 }
 
@@ -320,13 +406,6 @@ function deleteUserProduct(upid) {
 function deleteUserProductChannel(upcid) {
     sql = "DELETE FROM UserProductChannel \
             WHERE upcid = '" + upcid + "'" ;
-    return executeQuery(sql);
-}
-
-function getNotificationFlag() {
-    sql = "SELECT flag FROM Notification  \
-            WHERE userid = '" + userid + "' \
-            AND notificationTypeID = '1' ";
     return executeQuery(sql);
 }
 
@@ -426,6 +505,127 @@ function generateUpdateEmail(upid, upcid) {
     return param;
 }
 
-
 //POST FUNCTIONS
 
+function getUserPoolTypePOST() {
+    sql = "SELECT up.type, up.idUserPool \
+             FROM UserPool up \
+             JOIN UserMaster um ON (up.userid = um.userid) \
+             WHERE um.userStatus != 'BETA' \
+             AND um.userType = 'E' AND um.userid = '" + userid + "'" ;
+    return executeQuery(sql);    
+}
+
+function addAdminToUserPoolPOST() {
+    sql = "INSERT INTO UserPool (type, userid) \
+            VALUES ('ADMIN', '" + userid + "')";
+    return executeQuery(sql);
+}
+
+function updateUserMasterPOST() {
+    sql = "UPDATE UserMaster \
+            SET userStatus = 'PROSPECT' \
+            WHERE userid = '" + userid + "'";
+    return executeQuery(sql);
+}
+
+function getNewIdUserPoolPOST() {
+    sql = "SELECT idUserPool \
+             FROM UserPool  \
+             WHERE type = 'ADMIN' \
+             AND userid = '" + userid + "'" ;
+    return executeQuery(sql);    
+}
+
+function createNewProductPOST(params) {
+    sql = "INSERT INTO UserProduct (status, productAlias) \
+            VALUES ('NEW', '" + params.productAlias + "')";
+    return executeQuery(sql);      
+}
+
+function getUpIDPOST() {
+    sql = "SELECT upid FROM UserProduct \
+            WHERE createdOn = (SELECT MAX(createdOn) FROM UserProduct)";
+    return executeQuery(sql);
+}
+
+function createUserProductChannelPOST(upid, params) {
+    sql = "INSERT INTO UserProductChannel (upid, status, channelName, channelURL) \
+            VALUES ('" + upid + "', 'NEW', '" + params.channelName + "', '" + params.channelURL + "')";
+    return executeQuery(sql);  
+}
+
+function createSubscriptionPOST(upid, idUserPool) {
+    sql = "INSERT INTO Subscription (idProductPlan, upid, idUserPool, subscriptionStatus) \
+            VALUES ('PP5', '" + upid + "', '" + idUserPool + "', 'NEW')";
+    return executeQuery(sql);  
+}
+
+function getUserTypePOST() {
+    sql = "SELECT userType FROM UserMaster WHERE userid = '" + userid + "'"; 
+    return executeQuery(sql);  
+}
+
+function insertUserPoolPOST(idUserPool) {
+    sql = "INSERT INTO UserPool (idUserPool, type, userid) \
+            VALUES (" + idUserPool + "', 'USER', '" + userid + "')";
+    return executeQuery(sql);
+}
+
+function updateUserBeta() {
+    sql = "UPDATE UserMaster \
+            SET userStatus = 'BETA' \
+            WHERE = '" + userid + "'";
+    return executeQuery(sql);
+}
+
+function generatePOSTEmail(params) {
+
+    if (params.upid == undefined) params.upid = '';
+    if (params.upcid == undefined) params.upcid = '';
+    if (params.channelURL == undefined) params.channelURL = '';
+    if (params.channelName == undefined) params.channelName = '';
+    if (params.productAlias == undefined) params.productAlias = '';
+
+    var param = {
+        Destination: {
+            ToAddresses: [supportEmail]
+        },
+        Message: {
+            Body: {
+                Text: { Data: "A new subscription has been updated."
+
+                }
+            },
+            Subject: { Data: "New subscription: \
+                        upid: '" + params.upid + "' \
+                        productAlias: '" + params.productAlias + "' \
+                        upcid: '" + params.upcid + "' \
+                        channelName: '" + params.channelName + "' \
+                        channelURL: '" + params.channelURL + "' " }
+        },
+        Source: sourceEmail
+    };
+
+    return param;
+}
+
+function generateSandboxEmail() {
+
+    var param = {
+        Destination: {
+            ToAddresses: [userid]
+        },
+        Message: {
+            Body: {
+                Text: { Data: "Your sandbox subscription is now active."
+
+                }
+            },
+            Subject: { Data: "Sandbox subscription." }
+        },
+        Source: sourceEmail
+    };
+
+    return param;
+}
