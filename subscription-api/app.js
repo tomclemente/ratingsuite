@@ -75,7 +75,7 @@ exports.handler = async (event, context) => {
                         var idPool;
                         var upid; 
 
-                        if (plan == 'Sandbox') {
+                        if (params.plan == 'Sandbox') {
                             getUserTypePOST.then(function(result) {
 
                                 if (result[0].userType != 'NEW') {
@@ -363,8 +363,8 @@ function getAdminIdUserPool() {
     sql = "SELECT up.idUserPool \
             FROM UserPool up \
             JOIN UserMaster um ON (up.userid = um.userid) \
-            WHERE um.userStatus <> 'beta' \
-            AND up.type = 'admin' \
+            WHERE um.userStatus <> 'BETA' \
+            AND up.type = 'ADMIN' \
             AND um.userid '" + userid + "'";
     return executeQuery(sql);
 }
@@ -402,7 +402,7 @@ function decreaseActiveUsersFromProductChannel(upcid) {
 
 function setInactiveProductChannel(upcid) {
     sql = "UPDATE ProductChannel \
-            SET status = 'inactive' \
+            SET status = 'INACTIVE' \
             WHERE pcid IN (SELECT pcid FROM ProductChannelMapping \
                             WHERE upcid in '" + upcid + "')";
     return executeQuery(sql);
@@ -464,8 +464,8 @@ function getUserMasterPUT() {
     sql = "SELECT up.type, up.idUserPool \
             FROM UserPool up \
             JOIN UserMaster um ON (up.userid = um.userid) \
-            WHERE um.userStatus <> 'beta' \
-            AND um.userType <> 'e' \
+            WHERE um.userStatus <> 'BETA' \
+            AND um.userType <> 'E' \
             AND um.userid '" + userid + "'" ;
     return executeQuery(sql);;
 }
@@ -488,8 +488,8 @@ function updateUserProductChannelPUT(channelname, channelURL, upcid) {
 
 function updateProductChannelPUT(upcid) {
     sql = "UPDATE ProductChannel \
-            SET status = 'review' \
-            WHERE pcid = (SELECT pcid from \
+            SET status = 'REVIEW' \
+            WHERE pcid = (SELECT pcid FROM \
                         ProductChannelMapping \
                         WHERE upcid = '" + upcid + "' ";
     return executeQuery(sql);    
