@@ -38,16 +38,27 @@ exports.handler = async (event, context) => {
 
     const headers = {
         'Content-Type': 'application/json',
+        "Access-Control-Allow-Headers" : "Content-Type",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE"
     };
 
     try {
         body = await new Promise((resolve, reject) => {
 
-            getCognitoUser(function(data) {              
+            getCognitoUser().then(function(data) {              
                 console.log("Cognito UserAttributes: ", data.UserAttributes);
-                fname = data.UserAttributes[1].Value;   
-                femail = data.UserAttributes[2].Value;   
-                forg = "test";     
+                for (var x = 0; x < data.UserAttributes.length; x++) {
+                    let attrib = data.UserAttributes[x];
+
+                    if (attrib.Name == 'custom:name') {
+                        fname = attrib.Value;
+                    } else if (attrib.Name == 'email') {
+                        femail = attrib.Value;
+                    } else if (attrib.Name == 'custom:Organization') {
+                        forg = attrib.Value;
+                    }
+                }
 
             }).then(function() {
                 switch (event.httpMethod) {
@@ -129,7 +140,7 @@ exports.handler = async (event, context) => {
                                 }
                                 var emailParam = generatePOSTEmail(params);
                                 sendEmail(emailParam).then(resolve, reject);
-                                
+
                             },reject);
                         }
                     
@@ -614,7 +625,7 @@ function generateSandboxEmail() {
 
     var param = {
         Destination: {
-            ToAddresses: [userid]
+            ToAddresses: [femail]
         },
         Message: {
             Body: {
