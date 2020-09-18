@@ -8,13 +8,15 @@ exports.handler = async (event, context) => {
 
     const headers = {
         'Content-Type': 'application/json',
+        "Access-Control-Allow-Headers" : "Content-Type",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "OPTIONS,POST,GET"
     };
 
     try {    
         body = await new Promise((resolve, reject) => {
             var emailParam = generateEmailparam(params);
             sendEmail(emailParam).then(resolve,reject);
- 
         });
 
     } catch (err) {
