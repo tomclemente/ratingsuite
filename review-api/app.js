@@ -14,8 +14,8 @@ var userid;
 var userPoolData;
 var userMasterData;
 var getPromises = [];
-var ProductReviewData = [];
-var UserChannelPreferenceData = [];
+var productReviewData = [];
+var userChannelPreferenceData = [];
 var userFilterPreferenceData;
 var filterData = [];
 
@@ -77,7 +77,7 @@ exports.handler = async (event, context) => {
 
                             if (params == undefined || params == null) {
                                 if (userFilterPreferenceData != null || userFilterPreferenceData != undefined) {
-                                    getProductReview(userPoolData.idUserPool, UserChannelPreferenceData).then(function(data) {
+                                    getProductReview(userPoolData.idUserPool, userChannelPreferenceData).then(function(data) {
                                         data["Filters"] = filterData;
                                         resolve(data);
                                     }, reject);
@@ -109,12 +109,9 @@ exports.handler = async (event, context) => {
         });
 
     } catch (err) {
-        console.log("err: " ,err);
-        console.log("body 1: " ,body);
         statusCode = '400';
         body = err.message;
     } finally {
-        console.log("body 2: " ,body);
         body = JSON.stringify(body);
     }
 
@@ -173,8 +170,8 @@ function getUserChannelPreference() {
             AND userid = '" + userid + "'";
 
     return executeQuery(sql).then(function(result) {
-        UserChannelPreferenceData = result;
-        console.log("UserChannelPreferenceData: ", UserChannelPreferenceData);
+        userChannelPreferenceData = result;
+        console.log("userChannelPreferenceData: ", userChannelPreferenceData);
     });
 }
 
@@ -196,8 +193,8 @@ function getProductReview(idUserPool, upcidPref) {
                     JOIN Subscription s ON up.upid = s.upid AND s.status = 'ACTIVE' AND s.idUserPool = '" + idUserPool + "' \
                 WHERE upcid in '" + upcidlist + "' " + filter + "";
     return executeQuery(sql).then(function(result) {
-        ProductReviewData = result;
-        console.log("ProductReviewData: ", ProductReviewData);
+        productReviewData = result;
+        console.log("productReviewData: ", productReviewData);
     });
 }
 
@@ -279,8 +276,8 @@ function getDefaultProductReviews(upid) {
             WHERE " + filter + " ";
             
     return executeQuery(sql).then(function(result) {
-        ProductReviewData = result;
-        console.log("ProductReviewData: ", ProductReviewData);
+        productReviewData = result;
+        console.log("productReviewData: ", productReviewData);
     });
 }
 
@@ -319,8 +316,8 @@ function getProductReviewsWithParams(idUserPool, params) {
             WHERE up.upid = '" + params.upid + "' AND upc.upcid = '" + params.upcid + "' AND " + filter + " ";
             
     return executeQuery(sql).then(function(result) {
-        ProductReviewData = result;
-        console.log("ProductReviewData: ", ProductReviewData);
+        productReviewData = result;
+        console.log("productReviewData: ", productReviewData);
     });
 }
 
