@@ -191,7 +191,7 @@ exports.handler = async (event, context) => {
                         deletePromises.push(getUserMaster());
                         
                         Promise.all(deletePromises).then(function() {
-                            if (userMasterData.userType == 'e') {
+                            if (userMasterData.userType == 'E') {
                                 throw new Error("Not authorized.");                            
                             }
                             
@@ -215,7 +215,7 @@ exports.handler = async (event, context) => {
                                         fidUserPool = result[0].idUserPool;
                                         getSubscription(params.upid, fidUserPool).then(function(data) {
                                             if (data == undefined || data == null) {
-                                                throw new Error("Not authorized.");
+                                                throw new Error("No subscription found");
                                                 
                                             } else {
                                                 if (params.updateType == 'Product' 
@@ -233,25 +233,21 @@ exports.handler = async (event, context) => {
                             }
                                                     
                         }, reject).then(function() {
-                            getUserProductChannel(params.upcid, params.upid).then(function(result) {
-                                if (result == undefined) {
-                                    if (params.updateType == 'Product' || params.updateType == 'Channel') {
+                            
+                                
+                                    if (params.updateType == 'Product') {
                                         cancelSubscription(fidUserPool, params.upid).then(resolve, reject);
+                                        
+                                    }else if (params.updateType == 'Channel') {
                                         decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
                                         setInactiveProductChannel(params.upcid).then(resolve, reject);
-                                        deleteUserProduct(params.upid).then(resolve, reject);
-                                    }
-                                }          
-                            }, reject);     
+                                        deleteUserProductChannel(params.upcid).then(resolve, reject);
+                                    }    
+                                
                                                
                         }, reject).then(function() {
                             
-                            if (params.updateType == 'Channel') {
-                                decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
-                                setInactiveProductChannel(params.upcid).then(resolve, reject);
-                                deleteUserProductChannel(params.upcid).then(resolve, reject);
-                                
-                            } else if (params.updateType == 'Product') {
+                            if (params.updateType == 'Product') {
                                 getNotification().then(function() {
                                     if (notificationData.flag == '1') {
                                         var emailParam = generateCancelEmail();
@@ -377,12 +373,6 @@ function getSubscription(upid, idUserPool) {
     return executeQuery(sql);    
 }
 
-function getUserProductChannel(upcid, upid) {
-    sql = "SELECT upcid FROM UserProductChannel \
-            WHERE upcid <> '" + upcid + "' \
-            AND upid = '" + upid + "'";
-    return executeQuery(sql);
-}
 
 function cancelSubscription(idUserPool, upid) {
     sql = "UPDATE Subscription \
@@ -403,8 +393,11 @@ function decreaseActiveUsersFromProductChannel(upcid) {
 function setInactiveProductChannel(upcid) {
     sql = "UPDATE ProductChannel \
             SET status = 'INACTIVE' \
-            WHERE pcid IN (SELECT pcid FROM ProductChannelMapping \
+            WHERE nActiveusers = 0 and pcid IN (SELECT pcid FROM ProductChannelMapping \
                             WHERE upcid in '" + upcid + "')";
+
+                            
+
     return executeQuery(sql);
 }
 
