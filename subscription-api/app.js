@@ -66,7 +66,7 @@ exports.handler = async (event, context) => {
                     case 'GET':
                         getIdPool().then(function(result) {
                             if (result != undefined) {
-                                getSubscriptionDetails(result[0].idUserPool).then(resolve, reject);
+                                getSubscriptionDetails().then(resolve, reject);
                             }
                         }, reject);
                     break;
@@ -158,10 +158,10 @@ exports.handler = async (event, context) => {
                                 } else {
                                     let type = result[0].type;
 
-                                    if (type == 'User') {
+                                    if (type == 'USER') {
                                         throw new Error("Not authorized.");    
 
-                                    } else if (type == 'Admin') {
+                                    } else if (type == 'ADMIN') {
                                         idUserPool = result[0].idUserPool;
                                         
                                         if (params.updateType == 'Product') {
@@ -170,7 +170,7 @@ exports.handler = async (event, context) => {
                                             }
 
                                         } else if (params.updateType == 'Channel') {
-                                            updateUserProductChannelPUT(params.channelname, 
+                                            updateUserProductChannelPUT(params.channelName, 
                                                                     params.channelURL, params.upcid).then(resolve, reject);
                                             updateProductChannelPUT(params.upcid).then(resolve, reject);
                                             
@@ -324,7 +324,7 @@ function getCognitoUser() {
 }
 
 function getNotification() {
-    sql = "SELECT * FROM Notification where userid = '" + userid + "'";
+    sql = "SELECT * FROM Notification where flag = 1 and notificationTypeID = 1 and userid = '" + userid + "'";
     return executeQuery(sql).then(function(result) {
         notificationData = result[0];
         console.log("notificationData: ", notificationData);
@@ -448,13 +448,15 @@ function getIdPool() {
     return executeQuery(sql);
 }
 
-function getSubscriptionDetails(idUserPool) {
-    sql = "SELECT s.idProductPlan, s.endDate, s.subscriptionStatus, s.upid, \
+function getSubscriptionDetails() {
+    sql = "SELECT pp.plan, s.endDt, s.nxtBillingDt, s.subscriptionStatus, s.upid, \
             up.productAlias, upc.upcid, upc.channelName, upc.channelURL \
              FROM UserProductChannel upc \
              JOIN UserProduct up ON (upc.upid = up.upid) \
              JOIN Subscription s ON (up.upid = s.upid) \
-             WHERE s.idUserPool = '" + idUserPool + "'" ;
+             JOIN ProductPlan pp ON (pp.idProductPlan = s.idProductPlan) \
+             JOIN UserPool upl ON (upl.idUserPool = s.idUserPool) \
+             WHERE upl.userid = '" + userid + "'" ;
     return executeQuery(sql);    
 }
 
@@ -523,7 +525,7 @@ function getUserPoolTypePOST() {
              FROM UserPool up \
              JOIN UserMaster um ON (up.userid = um.userid) \
              WHERE um.userStatus != 'BETA' \
-             AND um.userType = 'E' AND um.userid = '" + userid + "'" ;
+             AND um.userType != 'E' AND um.userid = '" + userid + "'" ;
     return executeQuery(sql);    
 }
 
@@ -573,7 +575,7 @@ function createSubscriptionPOST(upid, idUserPool) {
 }
 
 function getUserTypePOST() {
-    sql = "SELECT userType FROM UserMaster WHERE userid = '" + userid + "'"; 
+    sql = "SELECT userStatus FROM UserMaster WHERE userid = '" + userid + "'"; 
     return executeQuery(sql);  
 }
 
