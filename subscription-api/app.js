@@ -78,7 +78,7 @@ exports.handler = async (event, context) => {
                         if (params.plan == 'Sandbox') {
                             getUserTypePOST.then(function(result) {
 
-                                if (result[0].userType != 'NEW') {
+                                if (result[0].userStatus != 'NEW') {
                                     throw new Error("Not authorized");
 
                                 } else {
