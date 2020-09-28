@@ -66,7 +66,9 @@ exports.handler = async (event, context) => {
                     case 'GET':
                         getIdPool().then(function(result) {
                             if (result != undefined) {
-                                getSubscriptionDetails().then(resolve, reject);
+                                getSubscriptionDetails().then(function(data) {
+                                    resolve(data);
+                                }, reject);
                             }
                         }, reject);
                     break;
