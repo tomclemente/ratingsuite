@@ -91,7 +91,7 @@ exports.handler = async (event, context) => {
                                         }                                        
                                     }).then(function() {
                                         getNotification().then(function() {
-                                            if (notificationData.flag == '1') {
+                                            if (notificationData != undefined) {
                                                 var emailParam = generateSandboxEmail();
                                                 sendEmail(emailParam).then(resolve, reject);
                                             }
@@ -251,7 +251,7 @@ exports.handler = async (event, context) => {
                             
                             if (params.updateType == 'Product') {
                                 getNotification().then(function() {
-                                    if (notificationData.flag == '1') {
+                                    if (notificationData != undefined) {
                                         var emailParam = generateCancelEmail();
                                         sendEmail(emailParam).then(resolve,reject);
                                     }
