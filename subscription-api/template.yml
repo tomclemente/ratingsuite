@@ -6,7 +6,7 @@ Transform:
 - AWS::Serverless-2016-10-31
 
 Resources:
-  userapi:
+  subscriptionapi:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: subscription-api

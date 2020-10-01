@@ -1,6 +1,6 @@
 {
-    "name": "user-api",
-    "description": "User API",
+    "name": "subscription-api",
+    "description": "Subscription API",
     "main": "app.js",
     "version": "0.0.1",
     "private": true,

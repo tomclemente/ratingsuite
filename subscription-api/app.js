@@ -17,6 +17,7 @@ var fidUserPool;
 var deletePromises = [];
 var userMasterData;
 var notificationData;
+var subscriptionData;
 
 //cognito information
 var forg;
@@ -77,9 +78,10 @@ exports.handler = async (event, context) => {
                         var idPool;
                         var upid; 
 
-                        if (params.plan == 'Sandbox') {
-                            getUserTypePOST.then(function(result) {
 
+                        getUserTypePOST.then(function(result) {
+
+                            if (params.plan == 'Sandbox') {
                                 if (result[0].userStatus != 'NEW') {
                                     throw new Error("Not authorized");
 
@@ -98,54 +100,59 @@ exports.handler = async (event, context) => {
                                         }, reject);
                                     }, reject);
                                 }
-                            }, reject);
-                        }
-
-                        if (params.plan == undefined || params.plan == null) {
-                            getUserPoolTypePOST().then(function(data) {
-                                if (data[0].type == "USER") {
+                            }
+    
+                            if (params.plan == undefined || params.plan == null) {
+                                if (result[0].userStatus == 'E') {
                                     throw new Error("Not authorized");
-
-                                } else if (data == undefined) {
-                                    addAdminToUserPoolPOST().then(resolve,reject);
-                                    updateUserMasterPOST().then(resolve,reject);
-                                    getNewIdUserPoolPOST().then(function(res) {
-                                        idPool = res[0].idUserPool;
-                                    }, reject);
-
-                                } else if (data != undefined) {
-                                    idPool = data[0].idUserPool
                                 }
-                                
-                            }, reject).then(function() {
-                                if (params.upid == undefined || params.upid == null) { //New Product
-                                    createNewProductPOST(params).then(function() {
-                                        getUpIDPOST().then(function(result) {
 
-                                            if (result != undefined) {
-                                                upid = result[0].upid;
-                                                createUserProductChannelPOST(upid, params).then(resolve,reject);
-                                                createSubscriptionPOST(upid, idPool).then(resolve,reject);
-                                            }
+                                getUserPoolTypePOST().then(function(data) {
+                                    if (data[0].type == "USER") {
+                                        throw new Error("Not authorized");
+    
+                                    } else if (data == undefined) {
+                                        addAdminToUserPoolPOST().then(resolve,reject);
+                                        updateUserMasterPOST().then(resolve,reject);
+                                        getNewIdUserPoolPOST().then(function(res) {
+                                            idPool = res[0].idUserPool;
                                         }, reject);
-                                    }, reject);
-                                }
+    
+                                    } else if (data != undefined) {
+                                        idPool = data[0].idUserPool
+                                    }
+                                    
+                                }, reject).then(function() {
+                                    if (params.upid == undefined || params.upid == null) { //New Product
+                                        createNewProductPOST(params).then(function() {
+                                            getUpIDPOST().then(function(result) {
+    
+                                                if (result != undefined) {
+                                                    upid = result[0].upid;
+                                                    createUserProductChannelPOST(upid, params).then(resolve,reject);
+                                                    createSubscriptionPOST(upid, idPool).then(resolve,reject);
+                                                }
+                                            }, reject);
+                                        }, reject);
+                                    }
+    
+                                }, reject).then(function() {
+                                    if (params.upcid != null) { //New Channel
+                                        createUserProductChannelPOST(params.upid, params).then(resolve,reject);
+                                    }
+    
+                                }, reject).then(function() {
+                                    if (params.upid == undefined) {
+                                        params.upid = upid;
+                                    }
+                                    var emailParam = generatePOSTEmail(params);
+                                    sendEmail(emailParam).then(resolve, reject);
+    
+                                },reject);
+                            }
 
-                            }, reject).then(function() {
-                                if (params.upcid != null) { //New Channel
-                                    createUserProductChannelPOST(params.upid, params).then(resolve,reject);
-                                }
+                        }, reject);
 
-                            }, reject).then(function() {
-                                if (params.upid == undefined) {
-                                    params.upid = upid;
-                                }
-                                var emailParam = generatePOSTEmail(params);
-                                sendEmail(emailParam).then(resolve, reject);
-
-                            },reject);
-                        }
-                    
                     break;
                         
                     case 'PUT':
@@ -215,11 +222,12 @@ exports.handler = async (event, context) => {
                                         
                                     } else {
                                         fidUserPool = result[0].idUserPool;
-                                        getSubscription(params.upid, fidUserPool).then(function(data) {
-                                            if (data == undefined || data == null) {
+                                        getSubscription(params.upid, fidUserPool).then(function() {
+                                            if (subscriptionData == undefined || subscriptionData == null) {
                                                 throw new Error("No subscription found");
                                                 
                                             } else {
+
                                                 if (params.updateType == 'Product' 
                                                         && (params.upid == undefined || params.upid == null)) {
                                                     throw new Error("upid is missing.");
@@ -228,6 +236,15 @@ exports.handler = async (event, context) => {
                                                             && (params.upcid == undefined || params.upcid == null)) {
                                                     throw new Error("upcid is missing.");
                                                 }
+
+                                                if (params.updateType == 'Product') {
+                                                    cancelSubscription(fidUserPool, params.upid).then(resolve, reject);
+                                                    
+                                                } else if (params.updateType == 'Channel') {
+                                                    decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
+                                                    setInactiveProductChannel(params.upcid).then(resolve, reject);
+                                                    deleteUserProductChannel(params.upcid).then(resolve, reject);
+                                                } 
                                             }
                                         }, reject);
                                     }
@@ -236,20 +253,7 @@ exports.handler = async (event, context) => {
                                                     
                         }, reject).then(function() {
                             
-                                
-                                    if (params.updateType == 'Product') {
-                                        cancelSubscription(fidUserPool, params.upid).then(resolve, reject);
-                                        
-                                    }else if (params.updateType == 'Channel') {
-                                        decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
-                                        setInactiveProductChannel(params.upcid).then(resolve, reject);
-                                        deleteUserProductChannel(params.upcid).then(resolve, reject);
-                                    }    
-                                
-                                               
-                        }, reject).then(function() {
-                            
-                            if (params.updateType == 'Product') {
+                            if (params.updateType == 'Product' && subscriptionData.subscriptionStatus == 'ACTIVE') {
                                 getNotification().then(function() {
                                     if (notificationData != undefined) {
                                         var emailParam = generateCancelEmail();
@@ -368,11 +372,14 @@ function getAdminIdUserPool() {
 }
 
 function getSubscription(upid, idUserPool) {
-    sql = "SELECT subscriptionID \
+    sql = "SELECT * \
             FROM Subscription \
             WHERE upid = '" + upid + "' \
             AND idUserPool = '" + idUserPool + "'";
-    return executeQuery(sql);    
+    return executeQuery(sql).then(function(result) {
+        subscriptionData = result[0];
+        console.log("subscriptionData: ", subscriptionData);
+    });  
 }
 
 

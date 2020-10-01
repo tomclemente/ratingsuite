@@ -3,8 +3,9 @@ version = 0.1
 [default.deploy]
 [default.deploy.parameters]
 stack_name = "subscription-api"
-s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-qdq2vocmxim2"
+s3_bucket = "aws-sam-cli-managed-default-samclisourcebucket-1jk2etunsj44n"
 s3_prefix = "subscription-api"
 region = "us-east-1"
 capabilities = "CAPABILITY_IAM"
+confirm_changeset = true
 
