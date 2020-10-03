@@ -20,3 +20,4 @@ Resources:
         - AWSLambdaVPCAccessExecutionRole
         - AmazonRDSFullAccess
         - AWSLambdaExecute
+        - AmazonCognitoReadOnly
