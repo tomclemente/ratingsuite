@@ -78,7 +78,9 @@ exports.handler = async (event, context) => {
                             if (params == undefined || params == null) {
                                 if (userFilterPreferenceData != null || userFilterPreferenceData != undefined) {
                                     getProductReview(userPoolData.idUserPool, userChannelPreferenceData).then(function(data) {
-                                        data["Filters"] = filterData;
+                                        if (data != undefined && data != null) {
+                                            data.Filters = filterData;                                                
+                                        }
                                         resolve(data);
                                     }, reject);
 
@@ -86,7 +88,9 @@ exports.handler = async (event, context) => {
                                     getUpID().then(function(data) {
                                         let upid = data[0].upid;
                                         getDefaultProductReviews(upid).then(function(data) {
-                                            data["Filters"] = filterData;
+                                            if (data != undefined && data != null) {
+                                                data.Filters = filterData;                                                
+                                            }
                                             resolve(data);   
                                         }, reject);
                                     }, reject);
@@ -94,10 +98,10 @@ exports.handler = async (event, context) => {
 
                             } else {
                                 getProductReviewsWithParams(userPoolData.idUserPool, params).then(function(data) {
-                                    if (data != undefined) {
-                                        data["Filters"] = filterData;
-                                        resolve(data);
-                                    }                                    
+                                    if (data != undefined && data != null) {
+                                        data.Filters = filterData;                                                
+                                    }
+                                    resolve(data);                                   
                                 }, reject);
                             }
                         }, reject).catch(err => reject({ statusCode: 500, body: err.message }));;
@@ -192,8 +196,9 @@ function getProductReview(idUserPool, upcidPref) {
                     JOIN ProductChannelMapping pcm ON pc.pcid = pcm.pcid \
                     JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' \
                     JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
-                    JOIN Subscription s ON up.upid = s.upid AND s.status = 'ACTIVE' AND s.idUserPool = '" + idUserPool + "' \
+                    JOIN Subscription s ON up.upid = s.upid AND s.idUserPool = '" + idUserPool + "' \
                 WHERE upcid in '" + upcidlist + "' " + filter + "";
+                //removed s.status = ACTIVE, no status column in Subscription
     return executeQuery(sql).then(function(result) {
         productReviewData = result;
         console.log("productReviewData: ", productReviewData);
@@ -208,40 +213,40 @@ function createFilter() {
 
     if (ufp.rating != null && ufp.rating != 'ALL') {
         filterData.push({ "rating" : ufp.rating });
-        cond.concat(" AND reviewRating = '" + ufp.rating + "'");
+        cond = cond.concat(" AND reviewRating = '" + ufp.rating + "'");
     }
 
     if (ufp.sentiment != null && ufp.sentiment != 'ALL') {
         filterData.push({ "sentiment" : ufp.sentiment });
-        cond.concat(" AND reviewSentiment = '" + ufp.sentiment + "'");
+        cond = cond.concat(" AND reviewSentiment = '" + ufp.sentiment + "'");
     }
 
     if (ufp.time != null && ufp.time != 'ALL') { //TODO for time-range
         let time = new Date() - ufp.time; //TO TEST
         filterData.push({ "time" : ufp.time });
-        cond.concat(" AND reviewDate >= '" + time + "'");
+        cond = cond.concat(" AND reviewDate >= '" + time + "'");
 
     } else {
         if (ufp.timeFrom != null) {
             filterData.push({ "timeFrom" : ufp.timeFrom });
-            cond.concat(" AND reviewDate >= '" + ufp.timeFrom + "'");
+            cond = cond.concat(" AND reviewDate >= '" + ufp.timeFrom + "'");
         }
     
         if (ufp.timeTo != null) {
             filterData.push({ "timeTo" : ufp.timeTo });
-            cond.concat(" AND reviewDate <= '" + ufp.timeTo + "'");
+            cond = cond.concat(" AND reviewDate <= '" + ufp.timeTo + "'");
         }
     }
 
     //SORTING
     if (ufp.sort == 'highest rated') {
-        cond.concat(" ORDER BY reviewRating DESC");
+        cond = cond.concat(" ORDER BY reviewRating DESC");
     } else if (ufp.sort == 'lowest rated') {
-        cond.concat(" ORDER BY reviewRating ASC");
+        cond = cond.concat(" ORDER BY reviewRating ASC");
     } else if (ufp.sort == 'oldest reviews') {
-        cond.concat(" ORDER BY reviewDate ASC");
+        cond = cond.concat(" ORDER BY reviewDate ASC");
     }  else { //default is recent reviews
-        cond.concat(" ORDER BY reviewDate DESC");
+        cond = cond.concat(" ORDER BY reviewDate DESC");
     }
 
     filterData.push({ "sortby" : ufp.sort });
@@ -288,9 +293,9 @@ function createDefaultFilter() {
     let prev7days = new Date() - 7;
     filterData = new Array();
     
-    cond.concat(" AND reviewDate >= '" + prev7days + "' ");
-    cond.concat(" SORT BY reviewDate DESC ");
-    cond.concat(" LIMIT 20 ");
+    cond = cond.concat(" reviewDate >= '" + prev7days + "' ");
+    cond = cond.concat(" SORT BY reviewDate DESC ");
+    cond = cond.concat(" LIMIT 20 ");
 
     filterData.push({ "time" : prev7days });
     filterData.push({ "sortby" : "recent reviews"});
