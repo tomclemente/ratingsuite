@@ -71,7 +71,7 @@ exports.handler = async (event, context) => {
                         getPromises.push(getUserChannelPreference());
 
                         Promise.all(getPromises).then(function() {
-                            if (userMasterData.userStatus != 'CUSTOMER' || userMasterData.status != 'BETA') {
+                            if (userMasterData.userStatus != 'CUSTOMER' && userMasterData.status != 'BETA') {
                                 throw new Error("Not Authorized.");
                             }
 
@@ -94,11 +94,13 @@ exports.handler = async (event, context) => {
 
                             } else {
                                 getProductReviewsWithParams(userPoolData.idUserPool, params).then(function(data) {
-                                    data["Filters"] = filterData;
-                                    resolve(data);
+                                    if (data != undefined) {
+                                        data["Filters"] = filterData;
+                                        resolve(data);
+                                    }                                    
                                 }, reject);
                             }
-                        }, reject);
+                        }, reject).catch(err => reject({ statusCode: 500, body: err.message }));;
 
                     break;
                      
@@ -110,7 +112,7 @@ exports.handler = async (event, context) => {
 
     } catch (err) {
         statusCode = '400';
-        body = err.message;
+        body = err;
     } finally {
         body = JSON.stringify(body);
     }
@@ -312,9 +314,9 @@ function getProductReviewsWithParams(idUserPool, params) {
             JOIN ProductChannelMapping pcm ON pc.pcid = pcm.pcid \
             JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' \
             JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
-            JOIN Subscription s ON up.upid = s.upid AND s.status = 'ACTIVE' AND s.idUserPool = '" + idUserPool + "' \
-            WHERE up.upid = '" + params.upid + "' AND upc.upcid = '" + params.upcid + "' AND " + filter + " ";
-            
+            JOIN Subscription s ON up.upid = s.upid AND s.idUserPool = '" + idUserPool + "' \
+            WHERE up.upid = '" + params.upid + "' AND upc.upcid = '" + params.upcid + "' " + filter + " ";
+            //removed s.status = ACTIVE, no status column in Subscription
     return executeQuery(sql).then(function(result) {
         productReviewData = result;
         console.log("productReviewData: ", productReviewData);
@@ -322,58 +324,57 @@ function getProductReviewsWithParams(idUserPool, params) {
 }
 
 function createParamFilters(params) {
-    let cond = "";
+    var cond = "";
     filterData = params;
+    console.log("createParamFilters params: ", params);
 
     if (params.time != null) {
         if (params.time == 'select range') { 
             if (params.timeFrom != null) {
-                cond.concat(" AND reviewDate >= '" + params.timeFrom + "'");
+                cond = cond.concat(" AND reviewDate >= '" + params.timeFrom + "'");
             }
         
             if (params.timeTo != null) {
-                cond.concat(" AND reviewDate <= '" + params.timeTo + "'");
+                cond = cond.concat(" AND reviewDate <= '" + params.timeTo + "'");
             }
 
         } else {
             let time = new Date() - params.time; //TO TEST
-            cond.concat(" AND reviewDate >= '" + time + "'");
+            cond = cond.concat(" AND reviewDate >= '" + time + "'");
         }
     }
 
-    if (params.rating != null) {
-        cond.concat(" AND reviewRating = '" + params.rating + "'");
+    if (params.rating != undefined) {
+        cond = cond.concat(" AND reviewRating = '" + params.rating + "'");
     }
 
     if (params.sentiment != null) {
-        cond.concat(" AND reviewSentiment = '" + params.sentiment + "'");
+        cond =  cond.concat(" AND reviewSentiment = '" + params.sentiment + "'");
     }
 
     if (params.searchTerm != null) {
-        let keyword = "";
-        keyword = params.searchTerm;
-        keyword = searchterm.toLowerCase();
-        cond.concat(" AND LOWER(reviewBody) LIKE '%" + keyword + "%' ");
+        let keyword = params.searchTerm.toLowerCase();
+        cond = cond.concat(" AND LOWER(reviewBody) LIKE '%" + keyword + "%' ");
     }
 
 
     //SORTING
     if (params.sortby == 'highest rated') {
-        cond.concat(" ORDER BY reviewRating DESC");
+        cond = cond.concat(" ORDER BY reviewRating DESC");
     } else if (params.sortby == 'lowest rated') {
-        cond.concat(" ORDER BY reviewRating ASC");
+        cond = cond.concat(" ORDER BY reviewRating ASC");
     } else if (params.sortby == 'oldest reviews') {
-        cond.concat(" ORDER BY reviewDate ASC");
+        cond = cond.concat(" ORDER BY reviewDate ASC");
     }  else { //default is recent reviews
-        cond.concat(" ORDER BY reviewDate DESC");
+        cond = cond.concat(" ORDER BY reviewDate DESC");
     }
 
     if (params.limit != null) {
-        cond.concat(" LIMIT = '" + params.limit + "'");
+        cond = cond.concat(" LIMIT = '" + params.limit + "'");
     }
 
     if (params.offset != null) {
-        cond.concat(" OFFSET = '" + params.offset + "'");
+        cond = cond.concat(" OFFSET = '" + params.offset + "'");
     }
 
     console.log("createParamFilters: ", cond);
