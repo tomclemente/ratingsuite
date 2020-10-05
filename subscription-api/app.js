@@ -608,7 +608,7 @@ function insertUserPoolPOST(idUserPool) {
 function updateUserBeta() {
     sql = "UPDATE UserMaster \
             SET userStatus = 'BETA' \
-            WHERE = '" + userid + "'";
+            WHERE userid = '" + userid + "'";
     return executeQuery(sql);
 }
 
