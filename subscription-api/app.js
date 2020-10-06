@@ -466,7 +466,7 @@ function getIdPool() {
 }
 
 function getSubscriptionDetails() {
-    sql = "SELECT pp.plan, s.endDt, s.subscriptionStatus, s.upid, \
+    sql = "SELECT pp.plan, s.startDt, s.endDt, s.subscriptionStatus, upl.idUserPool, upl.type, s.upid, \
             up.productAlias, upc.upcid, upc.channelName, upc.upcURL \
              FROM UserProductChannel upc \
              JOIN UserProduct up ON (upc.upid = up.upid) \
