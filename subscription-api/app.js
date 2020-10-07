@@ -116,7 +116,7 @@ exports.handler = async (event, context) => {
                                 }
 
                                 getUserPoolTypePOST().then(function(data) {
-                                    if (data[0].type == "USER") {
+                                    if (data == undefined || data[0].type == "USER") {
                                         throw new Error("Not authorized.");
     
                                     } else if (data == undefined) {
@@ -258,7 +258,8 @@ exports.handler = async (event, context) => {
                                                     
                         }, reject).then(function() {
                             
-                            if (params.updateType == 'Product' && subscriptionData.subscriptionStatus == 'ACTIVE') {
+                            if (params.updateType == 'Product' && 
+                                (subscriptionData != undefined && subscriptionData.subscriptionStatus == 'ACTIVE')) {
                                 getNotification().then(function() {
                                     if (notificationData != undefined) {
                                         var emailParam = generateCancelEmail();
