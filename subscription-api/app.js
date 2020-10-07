@@ -116,7 +116,7 @@ exports.handler = async (event, context) => {
                                 }
 
                                 getUserPoolTypePOST().then(function(data) {
-                                    if (data == undefined || data[0].type == "USER") {
+                                    if (data != undefined && data[0].type == "USER") {
                                         throw new Error("Not authorized.");
     
                                     } else if (data == undefined) {
@@ -126,7 +126,7 @@ exports.handler = async (event, context) => {
                                             idPool = res[0].idUserPool;
                                         }, reject);
     
-                                    } else if (data != undefined) {
+                                    } else if (data != undefined && data[0].type == "ADMIN") {
                                         idPool = data[0].idUserPool
                                     }
                                     
