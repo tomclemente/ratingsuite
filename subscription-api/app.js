@@ -500,7 +500,7 @@ function updateUserProductPUT(alias, upid) {
 function updateUserProductChannelPUT(channelname, channelURL, upcid) {
     sql = "UPDATE UserProductChannel \
             SET channelname = '" + channelname + "', \
-                channelURL = '" + channelURL + "', \
+                upcURL = '" + channelURL + "', \
                 status = 'NEW' \
             WHERE upcid = '" + upcid + "' ";
     return executeQuery(sql);
@@ -584,7 +584,7 @@ function getNewIdUserPoolPOST() {
 }
 
 function createUserProductChannelPOST(upid, params) {
-    sql = "INSERT INTO UserProductChannel (upid, status, channelName, channelURL) \
+    sql = "INSERT INTO UserProductChannel (upid, status, channelName, upcURL) \
             VALUES ('" + upid + "', 'NEW', '" + params.channelName + "', '" + params.channelURL + "')";
     return executeQuery(sql);  
 }
