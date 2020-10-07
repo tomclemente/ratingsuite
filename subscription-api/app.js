@@ -382,7 +382,7 @@ function getAdminIdUserPool() {
             JOIN UserMaster um ON (up.userid = um.userid) \
             WHERE um.userStatus <> 'BETA' \
             AND up.type = 'ADMIN' \
-            AND um.userid '" + userid + "'";
+            AND um.userid = '" + userid + "'";
     return executeQuery(sql);
 }
 
