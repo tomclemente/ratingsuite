@@ -485,7 +485,7 @@ function getUserMasterPUT() {
             JOIN UserMaster um ON (up.userid = um.userid) \
             WHERE um.userStatus <> 'BETA' \
             AND um.userType <> 'E' \
-            AND um.userid '" + userid + "'" ;
+            AND um.userid = '" + userid + "'" ;
     return executeQuery(sql);;
 }
 
