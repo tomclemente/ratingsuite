@@ -401,7 +401,7 @@ function getSubscription(upid, idUserPool) {
 
 function cancelSubscription(idUserPool, upid) {
     sql = "UPDATE Subscription \
-            SET cancelledOn = GETDATE() \
+            SET cancelledOn = CURRENT_DATE() \
             WHERE idUserPool = '" + idUserPool + "' \
             AND upid = '" + upid + "'";
     return executeQuery(sql);
@@ -410,16 +410,16 @@ function cancelSubscription(idUserPool, upid) {
 function decreaseActiveUsersFromProductChannel(upcid) {
     sql = "UPDATE ProductChannel \
             SET nActiveUsers = nActiveUsers - 1 \
-            WHERE pcid IN (SELECT pcid FROM ProductChannelMapping \
-                            WHERE upcid in '" + upcid + "')";
+            WHERE pcid = (SELECT pcid FROM ProductChannelMapping \
+                            WHERE upcid = '" + upcid + "')";
     return executeQuery(sql);
 }
 
 function setInactiveProductChannel(upcid) {
     sql = "UPDATE ProductChannel \
             SET status = 'INACTIVE' \
-            WHERE nActiveusers = 0 and pcid IN (SELECT pcid FROM ProductChannelMapping \
-                            WHERE upcid in '" + upcid + "')";
+            WHERE nActiveusers = 0 and pcid = (SELECT pcid FROM ProductChannelMapping \
+                            WHERE upcid = '" + upcid + "')";
 
                             
 
