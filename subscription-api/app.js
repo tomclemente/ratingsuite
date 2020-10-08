@@ -378,12 +378,15 @@ function deleteFromUserPool(idUserPool) {
 }
 
 function getAdminIdUserPool() {
-    sql = "SELECT up.idUserPool \
-            FROM UserPool up \
-            JOIN UserMaster um ON (up.userid = um.userid) \
-            WHERE um.userStatus <> 'BETA' \
-            AND up.type = 'ADMIN' \
-            AND um.userid = '" + userid + "'";
+    
+            sql = "SELECT up.idUserPool \
+             FROM UserPool up \
+             JOIN UserMaster um ON (up.userid = um.userid) \
+             WHERE um.userid = '" + userid + "' AND up.type = 'ADMIN' AND up.idUserPool not in \
+             ( SELECT DISTINCT (up2.idUserPool) FROM UserPool up2 \
+             JOIN Subscription s ON (s.idUserPool = up2.idUserPool) \
+             WHERE up2.type = 'ADMIN' AND s.idProductPlan = 'PP1' AND s.subscriptionStatus = 'ACTIVE')" ;
+
     return executeQuery(sql);
 }
 
@@ -542,8 +545,13 @@ function getUserPoolTypePOST() {
     sql = "SELECT up.type, up.idUserPool \
              FROM UserPool up \
              JOIN UserMaster um ON (up.userid = um.userid) \
-             WHERE um.userStatus != 'BETA' \
-             AND um.userType != 'E' AND um.userid = '" + userid + "'" ;
+             WHERE um.userid = '" + userid + "' AND up.idUserPool not in \
+             ( SELECT DISTINCT (up2.idUserPool) FROM UserPool up2 \
+             JOIN Subscription s ON (s.idUserPool = up2.idUserPool) \
+             WHERE up2.type = 'ADMIN' AND s.idProductPlan = 'PP1' AND s.subscriptionStatus = 'ACTIVE')" ;
+
+
+
     return executeQuery(sql);    
 }
 
