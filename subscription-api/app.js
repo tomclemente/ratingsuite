@@ -13,12 +13,13 @@ var connection = mysql.createConnection({
 
 var sql;
 var userid;
-var fidUserPool;
+var fidUserPool = null;
 var deletePromises = [];
-var userMasterData;
-var notificationData;
-var subscriptionData;
-var recentUserProduct;
+var arrPromise = [];
+var userMasterData = null;
+var notificationData = null;
+var subscriptionData = null;
+var recentUserProduct = null;
 
 //cognito information
 var forg;
@@ -82,44 +83,51 @@ exports.handler = async (event, context) => {
                     case 'POST':
                         var idPool;
 
-                        getUserTypePOST().then(function(result) {
+                        arrPromise.push(getNotification());
+                        arrPromise.push(getUserMaster());
+
+                        Promise.all(arrPromise).then(function() {
                             if (params.plan == 'Sandbox') {
-                                if (result[0].userStatus != 'NEW') {
+
+                                if (userMasterData.userStatus != 'NEW') {
                                     throw new Error("Not authorized.");
 
                                 } else {
+                                    
                                     getSandboxIdUserPool().then(function(data) {
-                                        if (data != undefined && data.length > 0) {
-                                            params.idProductPlan = data[0].idProductPlan;
-                                            insertUserPoolPOST(data[0].idUserPool).then(resolve, reject);
-                                            updateUserBeta().then(resolve, reject);
-                                        }     
 
-                                    }).then(function() {
-                                        getNotification().then(function() {
-                                            if (notificationData != undefined) {
-                                                var emailParam = generateSandboxEmail();
-                                                sendEmail(emailParam).then(resolve, reject);
-                                            }
-                                        }, reject);
+                                        if (isEmpty(data)) {
+                                            throw new Error("Missing UserPool data.");
+                                            
+                                        } else {
+                                            params.idUserPool = data[0].idUserPool;
+                                            insertUserPoolPOST(params.idUserPool).then(function() {
+                                                updateUserBeta().then(resolve, reject);
+                                            }, reject);                                            
+                                        }
 
-                                    }).then(function() {
-                                        console.log("returning params: ", params);
+                                        if (!isEmpty(notificationData)) {
+                                            var emailParam = generateSandboxEmail();
+                                            sendEmail(emailParam).then(resolve, reject);
+                                        }
+
+                                        console.log("Returning Params: ", params);
                                         resolve(params);
-                                    });
+
+                                    }, reject).catch(err => reject({ statusCode: 500, body: err.message }));
                                 }
                             }
     
                             if (params.plan == undefined || params.plan == null) {
-                                if (result[0].userStatus == 'E') {
+                                if (userMasterData.userStatus == 'E') {
                                     throw new Error("Not authorized.");
                                 }
 
                                 getUserPoolTypePOST().then(function(data) {
-                                    if (data != undefined && data[0].type == "USER") {
+                                    if (!isEmpty(data) && data[0].type == "USER") {
                                         throw new Error("Not authorized.");
     
-                                    } else if (data == undefined) {
+                                    } else if (isEmpty(data)) {
                                         addAdminToUserPoolPOST().then(resolve,reject);
                                         updateUserMasterPOST().then(resolve,reject);
                                         getNewIdUserPoolPOST().then(function(res) {
@@ -131,10 +139,10 @@ exports.handler = async (event, context) => {
                                     }
                                     
                                 }).then(function() {
-                                    if (params.upid == undefined || params.upid == null) { //New Product
+                                    if (isEmpty(params.upid)) { //New Product
                                             createNewProductPOST(params);
                                             getUpIDPOST();
-                                            if (recentUserProduct != undefined) {
+                                            if (!isEmpty(recentUserProduct)) {
                                                 params.upid = recentUserProduct.upid;
                                                 createUserProductChannelPOST(params.upid, params).then(resolve,reject);
                                                 createSubscriptionPOST(params.upid, idPool).then(resolve,reject);
@@ -296,6 +304,13 @@ exports.handler = async (event, context) => {
     };
 };
 
+function isEmpty(data) {
+    if (data == undefined || data == null || data.length == 0) {
+        return true;
+    }
+    return false;
+}
+
 //COMMON FUNCTIONS
 function chainError(err) {
     console.log("chainError: ", err);
@@ -319,6 +334,7 @@ function executeQuery(sql) {
 function sendEmail(params) {
     return new Promise((resolve, reject) => {
         var ses = new AWS.SES({region: 'us-east-1'});
+        console.log("Sending Email: ", params);
         ses.sendEmail(params, function (err, data) {
             if (err) {
                 console.log(err);
@@ -346,7 +362,7 @@ function getNotification() {
     return executeQuery(sql).then(function(result) {
         notificationData = result[0];
         console.log("notificationData: ", notificationData);
-    });
+    }); 
 }
 
 
@@ -582,10 +598,10 @@ function getNewIdUserPoolPOST() {
     return executeQuery(sql);
 }
 
- async function getUpIDPOST() {
+ function getUpIDPOST() {
     sql = "SELECT upid FROM UserProduct \
             WHERE createdOn = (SELECT MAX(createdOn) FROM UserProduct)";
-    return await executeQuery(sql).then(function(result) {
+    return executeQuery(sql).then(function(result) {
         recentUserProduct = result[0];
         console.log("recentUserProduct: ", recentUserProduct);
     });
@@ -600,11 +616,6 @@ function createUserProductChannelPOST(upid, params) {
 function createSubscriptionPOST(upid, idUserPool) {
     sql = "INSERT INTO Subscription (idProductPlan, upid, idUserPool, subscriptionStatus) \
             VALUES ('PP5', '" + upid + "', '" + idUserPool + "', 'NEW')";
-    return executeQuery(sql);  
-}
-
-function getUserTypePOST() {
-    sql = "SELECT userStatus FROM UserMaster WHERE userid = '" + userid + "'"; 
     return executeQuery(sql);  
 }
 
