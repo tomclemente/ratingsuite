@@ -70,7 +70,7 @@ exports.handler = async (event, context) => {
 
                     case 'GET':
                         getIdPool().then(function(result) {
-                            if (result != undefined) {
+                            if (!isEmpty(result)) {
                                 getSubscriptionDetails().then(function(data) {
                                     resolve(data);
                                 }, reject);
@@ -116,7 +116,7 @@ exports.handler = async (event, context) => {
                                 }
                             }
     
-                            if (params.plan == undefined || params.plan == null) {
+                            if (isEmpty(params.plan)) {
                                 if (userMasterData.userStatus == 'E') {
                                     throw new Error("Not authorized.");
                                 }
@@ -132,7 +132,7 @@ exports.handler = async (event, context) => {
                                             idPool = res[0].idUserPool;
                                         }, reject);
      
-                                    } else if (data != undefined && data[0].type == "ADMIN") {
+                                    } else if (!isEmpty(data) && data[0].type == "ADMIN") {
                                         idPool = data[0].idUserPool
                                     }
                                     
@@ -175,7 +175,7 @@ exports.handler = async (event, context) => {
                             
                         } else {
                             getUserMasterPUT().then(function(result) {
-                                if (result == undefined) {
+                                if (isEmpty(result)) {
                                     throw new Error("Not authorized.");                                
                                     
                                 } else {
@@ -188,7 +188,7 @@ exports.handler = async (event, context) => {
                                         idUserPool = result[0].idUserPool;
                                         
                                         if (params.updateType == 'Product') {
-                                            if (params.productAlias != undefined && params.upid != undefined) {
+                                            if (!isEmpty(params.productAlias) && !isEmpty(params.upid)) {
                                                 updateUserProductPUT(params.productAlias, params.upid);
                                             }
 
@@ -277,7 +277,7 @@ exports.handler = async (event, context) => {
                             
                             if (params.updateType == 'Product' && subscriptionData.subscriptionStatus == 'ACTIVE') {
                                 getNotification().then(function() {
-                                    if (notificationData != undefined) {
+                                    if (!isEmpty(notificationData)) {
                                         var emailParam = generateCancelEmail();
                                         sendEmail(emailParam).then(resolve,reject);
                                     }
@@ -330,7 +330,6 @@ function executeQuery(sql) {
     return new Promise((resolve, reject) => {
         console.log("Executing query: ", sql);
         connection.query(sql, function(err, result) {
-            console.log("Query is successful");
             if (err) {
                 console.log("SQL Error: " + err);
                 reject(err);
@@ -341,19 +340,15 @@ function executeQuery(sql) {
 };
 
 function executePostQuery(sql, post) {
-    return new Promise((resolve, reject) => {
-        
-        var query = connection.query(sql, post, function(err, res, fields) {
-            console.log("Query is successful");
+    return new Promise((resolve, reject) => {        
+        var query = connection.query(sql, post, function(err, res, fields) {        
             if (err) {
                 console.log("SQL Error: " + err);
                 reject(err);
             } else {
                 resolve(res);
-            }
-            console.log("result.insertId: ", res.insertId);            
+            }            
         });
-
         console.log("Executing post query: ", query.sql);
     });
 };
@@ -661,11 +656,11 @@ function updateUserBeta() {
 
 function generatePOSTEmail(params) {
 
-    if (params.upid == undefined) params.upid = '';
-    if (params.upcid == undefined) params.upcid = '';
-    if (params.channelURL == undefined) params.channelURL = '';
-    if (params.channelName == undefined) params.channelName = '';
-    if (params.productAlias == undefined) params.productAlias = '';
+    if (isEmpty(params.upid)) params.upid = '';
+    if (isEmpty(params.upcid)) params.upcid = '';
+    if (isEmpty(params.channelURL)) params.channelURL = '';
+    if (isEmpty(params.channelName)) params.channelName = '';
+    if (isEmpty(params.productAlias)) params.productAlias = '';
 
     var param = {
         Destination: {
