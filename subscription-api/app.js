@@ -76,7 +76,6 @@ exports.handler = async (event, context) => {
                                 }, reject);
                             }
                         }, reject).catch(err => {
-                            console.log(err);
                             reject({ statusCode: 500, body: err.message });
                         });
                     break;
@@ -213,7 +212,8 @@ exports.handler = async (event, context) => {
                     
                     case 'DELETE': 
                     
-                        arrPromise.push(getUserMaster());                        
+                        arrPromise.push(getUserMaster());
+                        arrPromise.push(getNotification());
                         
                         Promise.all(arrPromise).then(function() {
                             if (userMasterData.userType == 'E') {
@@ -272,17 +272,16 @@ exports.handler = async (event, context) => {
                                                     
                         }, reject).then(function() {
                             if (isEmpty(subscriptionData)) {
-                                throw new Error("No existing subscription data."); 
+                                throw new Error("No subscription found");
                             }
                             
-                            if (params.updateType == 'Product' && subscriptionData.subscriptionStatus == 'ACTIVE') {
-                                getNotification().then(function() {
-                                    if (!isEmpty(notificationData)) {
+                            if (params.updateType == 'Product' 
+                                    && subscriptionData.subscriptionStatus == 'ACTIVE'
+                                    && !isEmpty(notificationData)) {
                                         var emailParam = generateCancelEmail();
                                         sendEmail(emailParam).then(resolve,reject);
-                                    }
-                                }, reject);
                             }
+
                         }, reject).catch(err => {
                             console.log(err);
                             reject({ statusCode: 500, body: err.message });
@@ -320,11 +319,6 @@ function isEmpty(data) {
 }
 
 //COMMON FUNCTIONS
-function chainError(err) {
-    console.log("chainError: ", err);
-    Promise.reject({ statusCode: 500, body: err.message });
-}
-
 
 function executeQuery(sql) {
     return new Promise((resolve, reject) => {
@@ -341,7 +335,7 @@ function executeQuery(sql) {
 
 function executePostQuery(sql, post) {
     return new Promise((resolve, reject) => {        
-        var query = connection.query(sql, post, function(err, res, fields) {        
+        var query = connection.query(sql, post, function(err, res) {        
             if (err) {
                 console.log("SQL Error: " + err);
                 reject(err);
@@ -387,7 +381,6 @@ function getNotification() {
     }); 
 }
 
-
 //DELETE FUNCTIONS
 
 function getUserMaster() {
@@ -427,7 +420,7 @@ function getAdminIdUserPool() {
     return executeQuery(sql);
 }
 
-function getSubscription(upid, idUserPool) {
+function getSubscription(upid, idUserPool) {    
     sql = "SELECT * \
             FROM Subscription \
             WHERE upid = '" + upid + "' \
@@ -460,17 +453,14 @@ function setInactiveProductChannel(upcid) {
             SET status = 'INACTIVE' \
             WHERE nActiveusers = 0 and pcid = (SELECT pcid FROM ProductChannelMapping \
                             WHERE upcid = '" + upcid + "')";
-
-                            
-
     return executeQuery(sql);
 }
 
-function deleteUserProduct(upid) {
-    sql = "DELETE FROM UserProduct \
-            WHERE upid = '" + upid + "'" ;
-    return executeQuery(sql);
-}
+// function deleteUserProduct(upid) {
+//     sql = "DELETE FROM UserProduct \
+//             WHERE upid = '" + upid + "'" ;
+//     return executeQuery(sql);
+// }
 
 function deleteUserProductChannel(upcid) {
     sql = "DELETE FROM UserProductChannel \
@@ -586,23 +576,19 @@ function getUserPoolTypePOST() {
              ( SELECT DISTINCT (up2.idUserPool) FROM UserPool up2 \
              JOIN Subscription s ON (s.idUserPool = up2.idUserPool) \
              WHERE up2.type = 'ADMIN' AND s.idProductPlan = 'PP1' AND s.subscriptionStatus = 'ACTIVE')" ;
-
-
-
     return executeQuery(sql);    
 }
 
 function addAdminToUserPoolPOST() {
-    sql = "INSERT INTO UserPool (type, userid) \
-            VALUES ('ADMIN', '" + userid + "')";
-    return executeQuery(sql);
+    var post = {type: 'ADMIN', userid: userid};
+    sql = "INSERT INTO UserPool SET ?";
+    return executePostQuery(sql, post);
 }
 
 function updateUserMasterPOST() {
-    sql = "UPDATE UserMaster \
-            SET userStatus = 'PROSPECT' \
-            WHERE userid = '" + userid + "'";
-    return executeQuery(sql);
+    var post = {userStatus: 'PROSPECT', userid: userid};
+    sql = "UPDATE UserMaster SET ?";
+    return executePostQuery(sql, post);
 }
 
 function getNewIdUserPoolPOST() {
@@ -614,7 +600,7 @@ function getNewIdUserPoolPOST() {
 }
 
 function createNewProductPOST(params) {
-    var post  = {status: 'NEW', productAlias: params.productAlias};
+    var post = {status: 'NEW', productAlias: params.productAlias};
     sql = "INSERT INTO UserProduct SET ?";
     return executePostQuery(sql, post);
 }
@@ -626,25 +612,24 @@ function createNewProductPOST(params) {
         recentUserProduct = result[0];
         console.log("recentUserProduct: ", recentUserProduct);
     });
-
 }
 
 function createUserProductChannelPOST(upid, params) {
-    sql = "INSERT INTO UserProductChannel (upid, status, channelName, upcURL) \
-            VALUES ('" + upid + "', 'NEW', '" + params.channelName + "', '" + params.channelURL + "')";
-    return executeQuery(sql);  
+    var post = {upid: upid, status: 'NEW', channelName: params.channelName, upcURL: params.channelURL};
+    sql = "INSERT INTO UserProductChannel SET ?";
+    return executePostQuery(sql, post); 
 }
 
 function createSubscriptionPOST(upid, idUserPool) {
-    sql = "INSERT INTO Subscription (idProductPlan, upid, idUserPool, subscriptionStatus) \
-            VALUES ('PP5', '" + upid + "', '" + idUserPool + "', 'NEW')";
-    return executeQuery(sql);  
+    var post = {idProductPlan: 'PP5', upid: upid, idUserPool: idUserPool, subscriptionStatus: 'NEW'};
+    sql = "INSERT INTO Subscription SET ?";
+    return executePostQuery(sql, post);   
 }
 
 function insertUserPoolPOST(idUserPool) {
-    sql = "INSERT INTO UserPool (idUserPool, type, userid) \
-            VALUES ('" + idUserPool + "', 'USER', '" + userid + "')";
-    return executeQuery(sql);
+    var post = {idUserPool: idUserPool, type: 'USER', userid: userid};
+    sql = "INSERT INTO UserPool SET ?";
+    return executePostQuery(sql, post);   
 }
 
 function updateUserBeta() {
