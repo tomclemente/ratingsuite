@@ -184,7 +184,7 @@ exports.handler = async (event, context) => {
                                         throw new Error("Not authorized.");    
 
                                     } else if (type == 'ADMIN') {
-                                        idUserPool = result[0].idUserPool;
+                                        fidUserPool = result[0].idUserPool;
                                         
                                         if (params.updateType == 'Product') {
                                             if (!isEmpty(params.productAlias) && !isEmpty(params.upid)) {
