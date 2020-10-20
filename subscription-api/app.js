@@ -608,8 +608,8 @@ function createNewProductPOST(params) {
 }
 
  function getUpIDPOST() {
-    sql = "SELECT upid FROM UserProduct \
-            WHERE createdOn = (SELECT MAX(createdOn) FROM UserProduct)";
+    sql = "SELECT MAX(upid) FROM UserProduct"; 
+           
     return executeQuery(sql).then(function(result) {
         recentUserProduct = result[0];
         console.log("recentUserProduct: ", recentUserProduct);
