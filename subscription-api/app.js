@@ -6,12 +6,21 @@ var AWS = require('aws-sdk');
 var sourceEmail = process.env.SOURCE_EMAIL;
 var supportEmail = process.env.SUPPORT_EMAIL;
 
-var connection = mysql.createConnection({
-    host: process.env.RDS_ENDPOINT,
-    user: process.env.RDS_USERNAME,
-    password: process.env.RDS_PASSWORD,
-    database: process.env.RDS_DATABASE
-});
+// var connection = mysql.createConnection({
+//     host: process.env.RDS_ENDPOINT,
+//     user: process.env.RDS_USERNAME,
+//     password: process.env.RDS_PASSWORD,
+//     database: process.env.RDS_DATABASE
+// });
+
+var pool = mysql.createPool({
+    connectionLimit : 20,
+    host     : process.env.RDS_ENDPOINT,
+    user     : process.env.RDS_USERNAME,
+    password : process.env.RDS_PASSWORD,
+    database : process.env.RDS_DATABASE,
+    debug    :  false
+});    
 
 var sql;
 var userid;
@@ -92,19 +101,19 @@ exports.handler = async (event, context) => {
                                     throw new Error("Not authorized.");
 
                                 } else {                                    
-                                    getSandboxIdUserPool().then(function(data) {
+                                    getSandboxIdUserPool().then(async function(data) {
                                         if (isEmpty(data)) {
                                             throw new Error("Missing UserPool data.");
                                             
                                         } else {
                                             params.idUserPool = data[0].idUserPool;
-                                            insertUserPoolPOST(params.idUserPool).then(resolve, reject);  
-                                            updateUserBeta().then(resolve, reject);                                     
+                                            await insertUserPoolPOST(params.idUserPool);
+                                            await updateUserBeta();
                                         }
 
+                                    }, reject).then(function() {
                                         if (!isEmpty(notificationData)) {
-                                            var emailParam = generateSandboxEmail();
-                                            sendEmail(emailParam).then(resolve, reject);
+                                            return sendEmail(generateSandboxEmail());
                                         }
 
                                     }, reject).then(function() {
@@ -120,48 +129,43 @@ exports.handler = async (event, context) => {
                                     throw new Error("Not authorized.");
                                 }
 
-                                getUserPoolTypePOST().then(function(data) {
+                                getUserPoolTypePOST().then(async function(data) {
                                     if (!isEmpty(data) && data[0].type == "USER") {
                                         throw new Error("Not authorized.");
     
                                     } else if (isEmpty(data)) {
-                                        addAdminToUserPoolPOST().then(resolve,reject);
-                                        updateUserMasterPOST().then(resolve,reject);
-                                        getNewIdUserPoolPOST().then(function(res) {
-                                            idPool = res[0].idUserPool;
-                                        }, reject);
-     
-                                    } else if (!isEmpty(data) && data[0].type == "ADMIN") {
+                                        await addAdminToUserPoolPOST();
+                                        await updateUserMasterPOST();
+                                        const res = await getNewIdUserPoolPOST();
+                                        idPool = res[0].idUserPool;    
+
+                                    } else if (!isEmpty(data)) {
                                         idPool = data[0].idUserPool
                                     }
                                     
                                 }).then(function() {
                                     if (isEmpty(params.upid)) { //New Product
-                                        createNewProductPOST(params).then(resolve, reject);
+                                        return createNewProductPOST(params);
                                     } else { //New Channel
-                                        createUserProductChannelPOST(params.upid, params).then(resolve, reject);
+                                        return createUserProductChannelPOST(params.upid, params);
                                     }
 
-                                }).then(function() { 
+                                }).then(async function() {
                                     if (isEmpty(params.upid)) {
-                                        getUpIDPOST().then(resolve, reject);
+                                        const result = await getUpIDPOST();
+                                        params.upid = result[0].upid;
+                                        return createUserProductChannelPOST(params.upid, params).then(function() {
+                                            return createSubscriptionPOST(params.upid, idPool);
+                                        });
                                     }
 
-                                }).then(function() {                       
-                                    if (!isEmpty(recentUserProduct)) {
-                                        params.upid = recentUserProduct.upid;
-                                        createUserProductChannelPOST(params.upid, params).then(resolve, reject);
-                                        createSubscriptionPOST(params.upid, idPool).then(resolve, reject);
-                                        params.upid += 1;
-                                    }
-    
-                                }).then(function() {                       
-                                    var emailParam = generatePOSTEmail(params);
-                                    sendEmail(emailParam).then(resolve, reject);
+                                }).then(function() {
+                                    return sendEmail(generatePOSTEmail(params));
     
                                 }).then(function() {
+                                    console.log("Returning Params: ", params);
                                     resolve(params);
-
+                                        
                                 }).catch(err => reject({ statusCode: 500, body: err.message }));
                             }
                         }, reject).catch(err => reject({ statusCode: 500, body: err.message }));
@@ -224,65 +228,60 @@ exports.handler = async (event, context) => {
                                 getSandboxIdUserPool().then(function(result) {
                                     if (!isEmpty(result)) {
                                         fidUserPool = result[0].idUserPool;
-                                        deleteFromUserPool(fidUserPool).then(resolve, reject); 
+                                        return deleteFromUserPool(fidUserPool);
                                     }
 
                                 }, reject).then(function() {
                                     if (!isEmpty(params.upid) && !isEmpty(fidUserPool)) {
-                                        getSubscription(params.upid, fidUserPool);
+                                        return getSubscription(params.upid, fidUserPool);
                                     }
                                 });
                                 
                             } else {
-                                getAdminIdUserPool().then(function(result) {
-                                    console.log("getAdminIdUserPool result: ", result);                                
-                                    
+                                getAdminIdUserPool().then(async function(result) {                                                                   
                                     if (isEmpty(result)) {
                                         throw new Error("Not authorized.");
                                         
                                     } else {
                                         fidUserPool = result[0].idUserPool;
 
-                                        getSubscription(params.upid, fidUserPool).then(function() {
-                                            if (isEmpty(subscriptionData)) {
-                                                throw new Error("No subscription found");
-                                                
-                                            } else {
+                                        await getSubscription(params.upid, fidUserPool);
+                                        if (isEmpty(subscriptionData)) {
+                                            throw new Error("No subscription found");
 
-                                                if (params.updateType == 'Product' && isEmpty(params.upid)) {
-                                                    throw new Error("upid is missing.");
-                                                    
-                                                } else if (params.updateType == 'Channel' && isEmpty(params.upcid)) {
-                                                    throw new Error("upcid is missing.");
-                                                }
+                                        } else {
 
-                                                if (params.updateType == 'Product') {
-                                                    cancelSubscription(fidUserPool, params.upid).then(resolve, reject);
-                                                    
-                                                } else if (params.updateType == 'Channel') {
-                                                    decreaseActiveUsersFromProductChannel(params.upcid).then(resolve, reject);
-                                                    setInactiveProductChannel(params.upcid).then(resolve, reject);
-                                                    deleteUserProductChannel(params.upcid).then(resolve, reject);
-                                                } 
+                                            if (params.updateType == 'Product' && isEmpty(params.upid)) {
+                                                throw new Error("upid is missing.");
+
+                                            } else if (params.updateType == 'Channel' && isEmpty(params.upcid)) {
+                                                throw new Error("upcid is missing.");
                                             }
-                                        }, reject);
+
+                                            if (params.updateType == 'Product') {
+                                                await cancelSubscription(fidUserPool, params.upid);
+
+                                            } else if (params.updateType == 'Channel') {
+                                                await decreaseActiveUsersFromProductChannel(params.upcid);
+                                                await setInactiveProductChannel(params.upcid);
+                                                await deleteUserProductChannel(params.upcid);
+                                            }
+                                        }
                                     }
-                                });
-                            }
-                                                    
+                                }).catch(err => reject({ statusCode: 500, body: err.message }));
+                            }                                                    
                         }, reject).then(function() {
-                            if (isEmpty(subscriptionData)) {
-                                throw new Error("No subscription found");
-                            }
-                            
                             if (params.updateType == 'Product' 
-                                    && subscriptionData.subscriptionStatus == 'ACTIVE'
+                                    && (!isEmpty(subscriptionData) 
+                                    && subscriptionData.subscriptionStatus == 'ACTIVE')
                                     && !isEmpty(notificationData)) {
-                                        var emailParam = generateCancelEmail();
-                                        sendEmail(emailParam).then(resolve,reject);
+                                        return sendEmail(generateCancelEmail());
                             }
 
-                        }, reject).catch(err => {
+                        }).then(function() {
+                            resolve(params);
+
+                        }).catch(err => {
                             console.log(err);
                             reject({ statusCode: 500, body: err.message });
                         });  
@@ -322,28 +321,60 @@ function isEmpty(data) {
 
 function executeQuery(sql) {
     return new Promise((resolve, reject) => {
-        console.log("Executing query: ", sql);
-        connection.query(sql, function(err, result) {
+
+        pool.getConnection((err, connection) => {
             if (err) {
-                console.log("SQL Error: " + err);
+                console.log("executeQuery error: ", err);
                 reject(err);
+                return;
             }
-            resolve(result);
+
+            connection.query(sql, function(err, result) {
+                connection.release();
+                if (!err) {
+                    console.log("Executed query: ", sql);
+                    console.log("SQL Result: ", result[0] == undefined ? result : result[0]);
+                    resolve(result);
+                } else {
+                    reject(err);
+                }               
+            });
+
+            connection.on('error', function(err) {
+                console.log("connection.on ", err);
+                reject(err);
+                return;
+            });
         });
     });
 };
 
 function executePostQuery(sql, post) {
-    return new Promise((resolve, reject) => {        
-        var query = connection.query(sql, post, function(err, res) {        
+    return new Promise((resolve, reject) => {                
+        pool.getConnection((err, connection) => {
             if (err) {
-                console.log("SQL Error: " + err);
+                console.log("executePostQuery error: ", err);
                 reject(err);
-            } else {
-                resolve(res);
-            }            
-        });
-        console.log("Executing post query: ", query.sql);
+                return;
+            }
+
+            connection.query(sql, post, function (err, result) {
+                connection.release();
+                if (!err) {
+                    console.log("Executed post query: ", sql + " " + JSON.stringify(post));
+                    console.log("SQL Result: ", result);
+                    resolve(result.affectedRows);
+                } else {
+                    reject(err);
+                }
+            });
+
+            connection.on('error', function (err) {
+                console.log("connection.on ", err);
+                reject(err);
+                return;
+            });
+        }); 
     });
 };
 
@@ -353,10 +384,10 @@ function sendEmail(params) {
         console.log("Sending Email: ", params);
         ses.sendEmail(params, function (err, data) {
             if (err) {
-                console.log(err);
+                console.log("Email Error: ", err);
                 reject(err);
             } else {
-                console.log(data);
+                console.log("Email Success: ", data);
                 resolve(data);
             }
         });
@@ -588,12 +619,15 @@ function addAdminToUserPoolPOST() {
 }
 
 function updateUserMasterPOST() {
-    var post = {userStatus: 'PROSPECT', userid: userid};
-    sql = "UPDATE UserMaster SET ?";
-    return executePostQuery(sql, post);
+    console.log("updateUserMasterPOST()");
+    sql = "UPDATE UserMaster \
+        SET userStatus = 'PROSPECT' \
+        WHERE userid = '" + userid + "'";
+    return executeQuery(sql);
 }
 
 function getNewIdUserPoolPOST() {
+    console.log("getNewIdUserPoolPOST()");
     sql = "SELECT idUserPool \
              FROM UserPool  \
              WHERE type = 'ADMIN' \
@@ -607,13 +641,18 @@ function createNewProductPOST(params) {
     return executePostQuery(sql, post);
 }
 
- function getUpIDPOST() {
+ function getUpIDPOST2() {
     sql = "SELECT MAX(upid) FROM UserProduct"; 
            
     return executeQuery(sql).then(function(result) {
         recentUserProduct = result[0];
         console.log("recentUserProduct: ", recentUserProduct);
     });
+}
+
+function getUpIDPOST() {
+    sql = "SELECT MAX(upid) as upid FROM UserProduct";            
+    return executeQuery(sql);
 }
 
 function createUserProductChannelPOST(upid, params) {
@@ -668,6 +707,8 @@ function generatePOSTEmail(params) {
         },
         Source: sourceEmail
     };
+
+    console.log("generatePOSTEmail: ", param);
 
     return param;
 }
