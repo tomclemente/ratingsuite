@@ -190,7 +190,7 @@ exports.handler = async (event, context) => {
 
                                         } else if (params.updateType == 'Channel') {
                                             await updateUserProductChannelPUT(params.channelName, params.channelURL, params.upcid);
-                                            await updateProductChannelPUT(params.upcid);
+                                            //await updateProductChannelPUT(params.upcid);
 
                                         } else {
                                             throw new Error("Missing updateType.");
