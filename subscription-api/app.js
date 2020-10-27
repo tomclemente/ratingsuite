@@ -6,13 +6,6 @@ var AWS = require('aws-sdk');
 var sourceEmail = process.env.SOURCE_EMAIL;
 var supportEmail = process.env.SUPPORT_EMAIL;
 
-// var connection = mysql.createConnection({
-//     host: process.env.RDS_ENDPOINT,
-//     user: process.env.RDS_USERNAME,
-//     password: process.env.RDS_PASSWORD,
-//     database: process.env.RDS_DATABASE
-// });
-
 var pool = mysql.createPool({
     connectionLimit : 20,
     host     : process.env.RDS_ENDPOINT,
@@ -24,7 +17,7 @@ var pool = mysql.createPool({
 
 var sql;
 var userid;
-var fidUserPool = null;
+var g_idUserPool = null;
 var arrPromise = [];
 var userMasterData = null;
 var notificationData = null;
@@ -177,7 +170,7 @@ exports.handler = async (event, context) => {
                             throw new Error("Not authorized.");
                             
                         } else {
-                            getUserMasterPUT().then(function(result) {
+                            getUserMasterPUT().then(async function(result) {
                                 if (isEmpty(result)) {
                                     throw new Error("Not authorized.");                                
                                     
@@ -188,30 +181,34 @@ exports.handler = async (event, context) => {
                                         throw new Error("Not authorized.");    
 
                                     } else if (type == 'ADMIN') {
-                                        fidUserPool = result[0].idUserPool;
+                                        g_idUserPool = result[0].idUserPool;
                                         
                                         if (params.updateType == 'Product') {
                                             if (!isEmpty(params.productAlias) && !isEmpty(params.upid)) {
-                                                updateUserProductPUT(params.productAlias, params.upid);
+                                                await updateUserProductPUT(params.productAlias, params.upid);
                                             }
 
                                         } else if (params.updateType == 'Channel') {
-                                            updateUserProductChannelPUT(params.channelName, 
-                                                                    params.channelURL, params.upcid).then(resolve, reject);
-                                            updateProductChannelPUT(params.upcid).then(resolve, reject);
-                                            
+                                            await updateUserProductChannelPUT(params.channelName, params.channelURL, params.upcid);
+                                            await updateProductChannelPUT(params.upcid);
+
+                                        } else {
+                                            throw new Error("Missing updateType.");
                                         }
+
+                                    } else {
+                                        throw new Error("Invalid User Type.");
                                     }
                                 }
                                 
                             }, reject).then(function() {
-                                var emailParam = generateUpdateEmail(params.upid, params.upcid);
-                                sendEmail(emailParam).then(resolve, reject);
-                            }, reject).catch(err => {
-                                console.log(err);
-                                reject({ statusCode: 500, body: err.message });
-                            });  
-                        }                       
+                                return sendEmail(generateUpdateEmail(params.upid, params.upcid));
+
+                            }, reject).then(function() {
+                                resolve(params);
+    
+                            }, reject).catch(err => reject({ statusCode: 500, body: err.message }));  
+                        }
                     break;
                     
                     case 'DELETE': 
@@ -219,38 +216,50 @@ exports.handler = async (event, context) => {
                         arrPromise.push(getUserMaster());
                         arrPromise.push(getNotification());
                         
-                        Promise.all(arrPromise).then(function() {
+                        Promise.all(arrPromise).then(async function() {
                             if (userMasterData.userType == 'E') {
                                 throw new Error("Not authorized.");                            
                             }
                             
                             if (params.plan == 'Sandbox') {
-                                getSandboxIdUserPool().then(function(result) {
-                                    if (!isEmpty(result)) {
-                                        fidUserPool = result[0].idUserPool;
-                                        return deleteFromUserPool(fidUserPool);
-                                    }
+                                try {
 
-                                }, reject).then(function() {
-                                    if (!isEmpty(params.upid) && !isEmpty(fidUserPool)) {
-                                        return getSubscription(params.upid, fidUserPool);
-                                    }
-                                });
+                                    const result = await getSandboxIdUserPool();
+                                    if (!isEmpty(result)) {
+                                        g_idUserPool = result[0].idUserPool;
+
+                                        if (!isEmpty(g_idUserPool)) {
+                                            await deleteFromUserPool(g_idUserPool);
+                                            if (!isEmpty(params.upid)) {
+                                                await getSubscription(params.upid, g_idUserPool);
+                                            }
+                                        }
+                                    } 
+
+                                } catch (err) {
+                                    return reject({ statusCode: 500, body: err.message });
+                                }
                                 
                             } else {
-                                getAdminIdUserPool().then(async function(result) {                                                                   
+
+                                return getAdminIdUserPool().then(async function(result) {                                                         
                                     if (isEmpty(result)) {
                                         throw new Error("Not authorized.");
                                         
                                     } else {
-                                        fidUserPool = result[0].idUserPool;
+                                        g_idUserPool = result[0].idUserPool;
 
-                                        await getSubscription(params.upid, fidUserPool);
+                                        await getSubscription(params.upid, g_idUserPool);
+
                                         if (isEmpty(subscriptionData)) {
                                             throw new Error("No subscription found");
 
                                         } else {
 
+                                            if (isEmpty(params.updateType)) {
+                                                throw new Error("updateType is missing.");    
+                                            }
+                                        
                                             if (params.updateType == 'Product' && isEmpty(params.upid)) {
                                                 throw new Error("upid is missing.");
 
@@ -259,7 +268,7 @@ exports.handler = async (event, context) => {
                                             }
 
                                             if (params.updateType == 'Product') {
-                                                await cancelSubscription(fidUserPool, params.upid);
+                                                await cancelSubscription(g_idUserPool, params.upid);
 
                                             } else if (params.updateType == 'Channel') {
                                                 await decreaseActiveUsersFromProductChannel(params.upcid);
@@ -269,22 +278,20 @@ exports.handler = async (event, context) => {
                                         }
                                     }
                                 }).catch(err => reject({ statusCode: 500, body: err.message }));
-                            }                                                    
+                            }          
+                                                                      
                         }, reject).then(function() {
                             if (params.updateType == 'Product' 
                                     && (!isEmpty(subscriptionData) 
                                     && subscriptionData.subscriptionStatus == 'ACTIVE')
                                     && !isEmpty(notificationData)) {
                                         return sendEmail(generateCancelEmail());
-                            }
-
+                            } 
+                            
                         }).then(function() {
                             resolve(params);
 
-                        }).catch(err => {
-                            console.log(err);
-                            reject({ statusCode: 500, body: err.message });
-                        });  
+                        }, reject).catch(err => reject({ statusCode: 500, body: err.message }));
                         
                     break;
                         
@@ -340,11 +347,11 @@ function executeQuery(sql) {
                 }               
             });
 
-            connection.on('error', function(err) {
-                console.log("connection.on ", err);
-                reject(err);
-                return;
-            });
+            // connection.on('error', function(err) {
+            //     console.log("connection.on ", err);
+            //     reject(err);
+            //     return;
+            // });
         });
     });
 };
@@ -369,11 +376,11 @@ function executePostQuery(sql, post) {
                 }
             });
 
-            connection.on('error', function (err) {
-                console.log("connection.on ", err);
-                reject(err);
-                return;
-            });
+            // connection.on('error', function (err) {
+            //     console.log("connection.on ", err);
+            //     reject(err);
+            //     return;
+            // });
         }); 
     });
 };
@@ -423,6 +430,7 @@ function getUserMaster() {
 }
 
 function getSandboxIdUserPool() {
+    console.log("getSandboxIdUserPool()");
     sql = "SELECT up.idUserPool, s.idProductPlan \
             FROM UserPool up \
             JOIN Subscription s ON (s.idUserPool = up.idUserPool) \
@@ -486,12 +494,6 @@ function setInactiveProductChannel(upcid) {
                             WHERE upcid = '" + upcid + "')";
     return executeQuery(sql);
 }
-
-// function deleteUserProduct(upid) {
-//     sql = "DELETE FROM UserProduct \
-//             WHERE upid = '" + upid + "'" ;
-//     return executeQuery(sql);
-// }
 
 function deleteUserProductChannel(upcid) {
     sql = "DELETE FROM UserProductChannel \
@@ -574,7 +576,7 @@ function updateProductChannelPUT(upcid) {
             SET status = 'REVIEW' \
             WHERE pcid = (SELECT pcid FROM \
                         ProductChannelMapping \
-                        WHERE upcid = '" + upcid + "' ";
+                        WHERE upcid = '" + upcid + "') ";
     return executeQuery(sql);    
 }
 
@@ -639,15 +641,6 @@ function createNewProductPOST(params) {
     var post = {status: 'NEW', productAlias: params.productAlias};
     sql = "INSERT INTO UserProduct SET ?";
     return executePostQuery(sql, post);
-}
-
- function getUpIDPOST2() {
-    sql = "SELECT MAX(upid) FROM UserProduct"; 
-           
-    return executeQuery(sql).then(function(result) {
-        recentUserProduct = result[0];
-        console.log("recentUserProduct: ", recentUserProduct);
-    });
 }
 
 function getUpIDPOST() {
