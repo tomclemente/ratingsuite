@@ -115,7 +115,7 @@ exports.handler = async (event, context) => {
 
                                     }).catch(err => reject({ statusCode: 500, body: err.message }));
                                 }
-                                
+
                             } else {
                                 if (userMasterData.userStatus == 'E') {
                                     throw new Error("Not authorized.");
@@ -270,7 +270,7 @@ exports.handler = async (event, context) => {
                                             }
 
                                             if (params.updateType == 'Product') {
-                                                await cancelSubscription(g_idUserPool, params.upid);
+                                                await cancelSubscriptionDel(g_idUserPool, params.upid);
                                                 await deleteUserProduct(params.upid);
 
                                             } else if (params.updateType == 'Channel') {
@@ -476,6 +476,17 @@ function getSubscription(upid, idUserPool) {
     });  
 }
 
+// status = 'NEW' \
+
+
+function cancelSubscriptionDel(idUserPool, upid) {
+    sql = "UPDATE Subscription \
+            SET cancelledOn = CURRENT_DATE() , \
+            subscriptionStatus = 'CANCELLED' \
+            WHERE idUserPool = '" + idUserPool + "' \
+            AND upid = '" + upid + "'";
+    return executeQuery(sql);
+}
 
 function cancelSubscription(idUserPool, upid) {
     sql = "UPDATE Subscription \
