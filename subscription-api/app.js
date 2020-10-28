@@ -263,17 +263,24 @@ exports.handler = async (event, context) => {
                                             if (params.updateType == 'Product' && isEmpty(params.upid)) {
                                                 throw new Error("upid is missing.");
 
-                                            } else if (params.updateType == 'Channel' && isEmpty(params.upcid)) {
+                                            } else if (params.updateType == 'Subscription' && isEmpty(params.upid)) {
+                                                throw new Error("upid is missing.");
+
+                                            }else if (params.updateType == 'Channel' && isEmpty(params.upcid)) {
                                                 throw new Error("upcid is missing.");
                                             }
 
                                             if (params.updateType == 'Product') {
                                                 await cancelSubscription(g_idUserPool, params.upid);
+                                                await deleteUserProduct(params.upid);
 
                                             } else if (params.updateType == 'Channel') {
                                                 await decreaseActiveUsersFromProductChannel(params.upcid);
                                                 await setInactiveProductChannel(params.upcid);
                                                 await deleteUserProductChannel(params.upcid);
+
+                                            } else if (params.updateType == 'Subscription') {
+                                                await cancelSubscription(g_idUserPool, params.upid);
                                             }
                                         }
                                     }
@@ -281,7 +288,7 @@ exports.handler = async (event, context) => {
                             }          
                                                                       
                         }, reject).then(function() {
-                            if (params.updateType == 'Product' 
+                            if ((params.updateType == 'Product' || params.updateType == 'Subscription')
                                     && (!isEmpty(subscriptionData) 
                                     && subscriptionData.subscriptionStatus == 'ACTIVE')
                                     && !isEmpty(notificationData)) {
@@ -495,6 +502,12 @@ function setInactiveProductChannel(upcid) {
     return executeQuery(sql);
 }
 
+function deleteUserProduct(upid) {
+    sql = "DELETE FROM UserProduct \
+            WHERE upid = '" + upid + "'" ;
+    return executeQuery(sql);
+}
+
 function deleteUserProductChannel(upcid) {
     sql = "DELETE FROM UserProductChannel \
             WHERE upcid = '" + upcid + "'" ;
@@ -508,11 +521,11 @@ function generateCancelEmail() {
         },
         Message: {
             Body: {
-                Text: { Data: "A product has been deleted."
+                Text: { Data: "Your subscription has been canceled."
 
                 }
             },
-            Subject: { Data: "Product Deletion" }
+            Subject: { Data: "Subscription has been canceled" }
         },
         Source: sourceEmail
     };
