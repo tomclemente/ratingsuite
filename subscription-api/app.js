@@ -115,9 +115,8 @@ exports.handler = async (event, context) => {
 
                                     }).catch(err => reject({ statusCode: 500, body: err.message }));
                                 }
-                            }
-    
-                            if (isEmpty(params.plan)) {
+                                
+                            } else {
                                 if (userMasterData.userStatus == 'E') {
                                     throw new Error("Not authorized.");
                                 }
