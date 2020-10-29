@@ -287,7 +287,7 @@ exports.handler = async (event, context) => {
                                                                       
                         }, reject).then(function() {
                             if (!isEmpty(notificationData)) {
-                                if (params.updateType == 'Product') {
+                                if (params.updateType == 'Product' && !isEmpty(subscriptionData) && subscriptionData.subscriptionStatus == 'ACTIVE') {
                                     return sendEmail(generateCancelProductEmail(params));
                                 } else if (params.updateType == 'Subscription' && !isEmpty(subscriptionData) && subscriptionData.subscriptionStatus == 'ACTIVE') {
                                     return sendEmail(generateCancelSubscriptionEmail(params));
