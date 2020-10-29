@@ -548,7 +548,7 @@ function generateWelcomeParam() {
                 }
               },
 
-            Subject: { Data: "Welcome Email" }
+            Subject: { Data: "Welcome to Ratingsuite!" }
         },
         Source: sourceEmail
     };
