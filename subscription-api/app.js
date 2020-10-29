@@ -721,7 +721,7 @@ function generateCancelProductEmail(params) {
                     </html>`
                 }
               },
-            Subject: { Data: "Subscription has been canceled" }
+            Subject: { Data: "Ratingsuite: Product has been removed!" }
         },
         Source: sourceEmail
     };
@@ -931,7 +931,7 @@ function generateCancelSubscriptionEmail(params) {
                     </html>`
                 }
               },
-            Subject: { Data: "Subscription has been canceled" }
+            Subject: { Data: "Ratingsuite: Subscription has been cancelled!" }
         },
         Source: sourceEmail
     };
@@ -1327,7 +1327,7 @@ function generateSandboxEmail() {
                     </html>`
                 }
             },
-            Subject: { Data: "Your Sandbox subscription." }
+            Subject: { Data: "Ratingsuite: Your are subscribed to Sandbox!" }
         },
         Source: sourceEmail
     };
