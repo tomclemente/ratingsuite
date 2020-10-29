@@ -1327,7 +1327,7 @@ function generateSandboxEmail() {
                     </html>`
                 }
             },
-            Subject: { Data: "Ratingsuite: Your are subscribed to Sandbox!" }
+            Subject: { Data: "Ratingsuite: You are subscribed to Sandbox!" }
         },
         Source: sourceEmail
     };
