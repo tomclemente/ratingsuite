@@ -39,6 +39,7 @@ exports.handler = async (event, context) => {
     let statusCode = '200';
 
     const headers = {
+        "Access-Control-Allow-Credentials" : true,
         'Content-Type': 'application/json',
         "Access-Control-Allow-Headers" : "Content-Type",
         "Access-Control-Allow-Origin": "*",
