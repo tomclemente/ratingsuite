@@ -30,7 +30,12 @@ exports.handler = async (event, context) => {
     let params = JSON.parse(event["body"]);
     console.log('Received event:', JSON.stringify(event, null, 2));
 
-    userid = event.requestContext.authorizer.claims.username;
+    if (isEmpty(event.requestContext.authorizer.claims.username)) {
+      userid = event.requestContext.authorizer.claims["cognito:username"];
+    } else {
+      userid = event.requestContext.authorizer.claims.username;
+    }
+
     if (userid == null) {
         throw new Error("Username is missing. Not authenticated.");
     }
@@ -161,6 +166,14 @@ exports.handler = async (event, context) => {
         headers,
     };
 };
+
+function isEmpty(data) {
+  if (data == undefined || data == null || data.length == 0) {
+      return true;
+  }
+  return false;
+}
+
 
 function getAllUPID() {
     sql = "SELECT s.upid FROM Subscription s \
