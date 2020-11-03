@@ -33,7 +33,12 @@ exports.handler = async (event, context) => {
     let params = JSON.parse(event["body"]);
     console.log('Received event:', JSON.stringify(event, null, 2));
     
-    userid = event.requestContext.authorizer.claims.username;
+    if (isEmpty(event.requestContext.authorizer.claims.username)) {
+      userid = event.requestContext.authorizer.claims["cognito:username"];
+    } else {
+      userid = event.requestContext.authorizer.claims.username;
+    }
+    
     if (userid == null) {
         throw new Error("Username missing. Not authenticated.");
     }
