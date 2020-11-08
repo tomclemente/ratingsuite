@@ -131,7 +131,6 @@ exports.handler = async (event, context) => {
     
                                     } else if (isEmpty(data)) {
                                         await addAdminToUserPoolPOST();
-                                        await updateUserMasterPOST();
                                         const res = await getNewIdUserPoolPOST();
                                         idPool = res[0].idUserPool;    
 
@@ -1045,13 +1044,13 @@ function addAdminToUserPoolPOST() {
     return executePostQuery(sql, post);
 }
 
-function updateUserMasterPOST() {
-    console.log("updateUserMasterPOST()");
-    sql = "UPDATE UserMaster \
-        SET userStatus = 'PROSPECT' \
-        WHERE userid = '" + userid + "'";
-    return executeQuery(sql);
-}
+// function updateUserMasterPOST() {
+//     console.log("updateUserMasterPOST()");
+//     sql = "UPDATE UserMaster \
+//         SET userStatus = 'PROSPECT' \
+//         WHERE userid = '" + userid + "'";
+//     return executeQuery(sql);
+// }
 
 function getNewIdUserPoolPOST() {
     console.log("getNewIdUserPoolPOST()");
