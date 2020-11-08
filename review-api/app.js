@@ -341,7 +341,7 @@ function getProductReviewsWithParams(idUserPool, params) {
     });
 }
 
-function createParamFilters(params) { //tom add alias
+function createParamFilters(params) {
     var cond = "";
     filterData = params;
     console.log("createParamFilters params: ", params);
@@ -349,42 +349,42 @@ function createParamFilters(params) { //tom add alias
     if (params.time != null) {
         if (params.time == 'select range') { //tom remove select trange
             if (params.timeFrom != null) {
-                cond = cond.concat(" AND reviewDate >= '" + params.timeFrom + "'");
+                cond = cond.concat(" AND pr.reviewDate >= '" + params.timeFrom + "'");
             }
         
             if (params.timeTo != null) {
-                cond = cond.concat(" AND reviewDate <= '" + params.timeTo + "'");
+                cond = cond.concat(" AND pr.reviewDate <= '" + params.timeTo + "'");
             }
 
         } else {
             let time = new Date() - params.time; //TO TEST
-            cond = cond.concat(" AND reviewDate >= '" + time + "'");
+            cond = cond.concat(" AND pr.reviewDate >= '" + time + "'");
         }
     }
 
     if (params.rating != undefined) {
-        cond = cond.concat(" AND reviewRating = '" + params.rating + "'");
+        cond = cond.concat(" AND pr.reviewRating = '" + params.rating + "'");
     }
 
     if (params.sentiment != null) {
-        cond =  cond.concat(" AND reviewSentiment = '" + params.sentiment + "'");
+        cond =  cond.concat(" AND pr.reviewSentiment = '" + params.sentiment + "'");
     }
 
     if (params.searchTerm != null) {
         let keyword = params.searchTerm.toLowerCase();
-        cond = cond.concat(" AND LOWER(reviewBody) LIKE '%" + keyword + "%' ");
+        cond = cond.concat(" AND LOWER(pr.reviewBody) LIKE '%" + keyword + "%' ");
     }
 
 
     //SORTING
     if (params.sortby == 'highest rated') {
-        cond = cond.concat(" ORDER BY reviewRating DESC");
+        cond = cond.concat(" ORDER BY pr.reviewRating DESC");
     } else if (params.sortby == 'lowest rated') {
-        cond = cond.concat(" ORDER BY reviewRating ASC");
+        cond = cond.concat(" ORDER BY pr.reviewRating ASC");
     } else if (params.sortby == 'oldest reviews') {
-        cond = cond.concat(" ORDER BY reviewDate ASC");
+        cond = cond.concat(" ORDER BY pr.reviewDate ASC");
     }  else { //default is recent reviews
-        cond = cond.concat(" ORDER BY reviewDate DESC");
+        cond = cond.concat(" ORDER BY pr.reviewDate DESC");
     }
 
     if (params.limit != null) {
