@@ -346,22 +346,14 @@ function createParamFilters(params) {
     filterData = params;
     console.log("createParamFilters params: ", params);
 
-    if (params.time != null) {
-        if (params.time == 'select range') { //tom remove select trange
-            if (params.timeFrom != null) {
-                cond = cond.concat(" AND pr.reviewDate >= '" + params.timeFrom + "'");
-            }
-        
-            if (params.timeTo != null) {
-                cond = cond.concat(" AND pr.reviewDate <= '" + params.timeTo + "'");
-            }
-
-        } else {
-            let time = new Date() - params.time; //TO TEST
-            cond = cond.concat(" AND pr.reviewDate >= '" + time + "'");
-        }
+    if (params.timeFrom != null) {
+        cond = cond.concat(" AND pr.reviewDate >= '" + params.timeFrom + "'");
     }
-
+    
+    if (params.timeTo != null) {
+        cond = cond.concat(" AND pr.reviewDate <= '" + params.timeTo + "'");
+    }
+ 
     if (params.rating != undefined) {
         cond = cond.concat(" AND pr.reviewRating = '" + params.rating + "'");
     }
@@ -374,7 +366,6 @@ function createParamFilters(params) {
         let keyword = params.searchTerm.toLowerCase();
         cond = cond.concat(" AND LOWER(pr.reviewBody) LIKE '%" + keyword + "%' ");
     }
-
 
     //SORTING
     if (params.sortby == 'highest rated') {
