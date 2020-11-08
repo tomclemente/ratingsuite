@@ -225,40 +225,40 @@ function createFilter() {
 
     if (ufp.rating != null && ufp.rating != 'ALL') {
         filterData.push({ "rating" : ufp.rating });
-        cond = cond.concat(" AND reviewRating = '" + ufp.rating + "'");
+        cond = cond.concat(" AND pr.reviewRating = '" + ufp.rating + "'");
     }
 
     if (ufp.sentiment != null && ufp.sentiment != 'ALL') {
         filterData.push({ "sentiment" : ufp.sentiment });
-        cond = cond.concat(" AND reviewSentiment = '" + ufp.sentiment + "'");
+        cond = cond.concat(" AND pr.reviewSentiment = '" + ufp.sentiment + "'");
     }
 
     if (ufp.time != null && ufp.time != 'ALL') { //TODO for time-range
         let time = new Date() - ufp.time; //TO TEST
         filterData.push({ "time" : ufp.time });
-        cond = cond.concat(" AND reviewDate >= '" + time + "'");
+        cond = cond.concat(" AND pr.reviewDate >= '" + time + "'");
 
     } else {
         if (ufp.timeFrom != null) {
             filterData.push({ "timeFrom" : ufp.timeFrom });
-            cond = cond.concat(" AND reviewDate >= '" + ufp.timeFrom + "'");
+            cond = cond.concat(" AND pr.reviewDate >= '" + ufp.timeFrom + "'");
         }
     
         if (ufp.timeTo != null) {
             filterData.push({ "timeTo" : ufp.timeTo });
-            cond = cond.concat(" AND reviewDate <= '" + ufp.timeTo + "'");
+            cond = cond.concat(" AND pr.reviewDate <= '" + ufp.timeTo + "'");
         }
     }
 
     //SORTING
     if (ufp.sort == 'highest rated') {
-        cond = cond.concat(" ORDER BY reviewRating DESC");
+        cond = cond.concat(" ORDER BY pr.reviewRating DESC");
     } else if (ufp.sort == 'lowest rated') {
-        cond = cond.concat(" ORDER BY reviewRating ASC");
+        cond = cond.concat(" ORDER BY pr.reviewRating ASC");
     } else if (ufp.sort == 'oldest reviews') {
-        cond = cond.concat(" ORDER BY reviewDate ASC");
+        cond = cond.concat(" ORDER BY pr.reviewDate ASC");
     }  else { //default is recent reviews
-        cond = cond.concat(" ORDER BY reviewDate DESC");
+        cond = cond.concat(" ORDER BY pr.reviewDate DESC");
     }
 
     filterData.push({ "sortby" : ufp.sort });
