@@ -332,21 +332,22 @@ function getProductReviewsWithParams(idUserPool, params) {
             JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' \
             JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
             JOIN Subscription s ON up.upid = s.upid AND s.idUserPool = '" + idUserPool + "' \
-            WHERE up.upid = '" + params.upid + "' AND upc.upcid = '" + params.upcid + "' " + filter + " ";
-            //removed s.status = ACTIVE, no status column in Subscription
+            WHERE up.upid = '" + params.upid + "' \
+            AND s.subscriptionStatus = ACTIVE AND upc.upcid = '" + params.upcid + "' " + filter + " ";
+            
     return executeQuery(sql).then(function(result) {
         productReviewData = result;
         console.log("productReviewData: ", productReviewData);
     });
 }
 
-function createParamFilters(params) {
+function createParamFilters(params) { //tom add alias
     var cond = "";
     filterData = params;
     console.log("createParamFilters params: ", params);
 
     if (params.time != null) {
-        if (params.time == 'select range') { 
+        if (params.time == 'select range') { //tom remove select trange
             if (params.timeFrom != null) {
                 cond = cond.concat(" AND reviewDate >= '" + params.timeFrom + "'");
             }
@@ -387,11 +388,11 @@ function createParamFilters(params) {
     }
 
     if (params.limit != null) {
-        cond = cond.concat(" LIMIT = '" + params.limit + "'");
+        cond = cond.concat(" LIMIT '" + params.limit + "'");
     }
 
     if (params.offset != null) {
-        cond = cond.concat(" OFFSET = '" + params.offset + "'");
+        cond = cond.concat(" OFFSET '" + params.offset + "'");
     }
 
     console.log("createParamFilters: ", cond);
