@@ -16,6 +16,7 @@ var userMasterData;
 var getPromises = [];
 var productReviewData = [];
 var userChannelPreferenceData = [];
+var userPreferenceData = [];
 var userFilterPreferenceData;
 var filterData = [];
 
@@ -82,7 +83,7 @@ exports.handler = async (event, context) => {
 
                             if (params == undefined || params == null) {
                                 if (userFilterPreferenceData != null || userFilterPreferenceData != undefined) {
-                                    getProductReview(userPoolData.idUserPool, userChannelPreferenceData).then(function(data) {
+                                    getProductReview(userPoolData.idUserPool, userChannelPreferenceData, userPreferenceData).then(function(data) {
                                         if (data != undefined && data != null) {
                                             data.Filters = filterData;                                                
                                         }
@@ -183,21 +184,29 @@ function getUserPool() {
 }
 
 function getUserChannelPreference() {
-    sql = "SELECT * FROM UserChannelPreference \
+    sql = "SELECT upid_pref, upcid_pref FROM UserChannelPreference \
             WHERE preferenceType = 'REVIEW' \
             AND userid = '" + userid + "'";
 
     return executeQuery(sql).then(function(result) {
-        userChannelPreferenceData = result;
+        userChannelPreferenceData = result["upcid_pref"];
         console.log("userChannelPreferenceData: ", userChannelPreferenceData);
+        
+        userPreferenceData = result["upid_pref"];
+        console.log("userPreferenceData: ", userPreferenceData);
     });
 }
 
-function getProductReview(idUserPool, upcidPref) {
+function getProductReview(idUserPool, upcidPref, upidPref) {
     let filter = createFilter();
     let upcidlist = "'";
+    let upidPref = "'";
+
     upcidlist += upcidPref.join("\',\'");
     upcidlist += "'";
+
+    upidPref += upidPref.join("\',\'");
+    upidPref += "'";
 
     sql = "Select s.upid,up.productAlias,upc.upcid,upc.channelName, pr.reviewID, \
             pr.reviewTitle, pr.reviewBody, pr.reviewUser, pr.reviewUserID, \
@@ -209,8 +218,9 @@ function getProductReview(idUserPool, upcidPref) {
                     JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' \
                     JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
                     JOIN Subscription s ON up.upid = s.upid AND s.idUserPool = '" + idUserPool + "' \
-                WHERE upcid in '" + upcidlist + "' " + filter + "";
-                //removed s.status = ACTIVE, no status column in Subscription
+                WHERE s.upid in ('" + upidPref + "') \
+                AND upcid in ('" + upcidlist + "') " + filter + "";
+            
     return executeQuery(sql).then(function(result) {
         productReviewData = result;
         console.log("productReviewData: ", productReviewData);
@@ -233,8 +243,8 @@ function createFilter() {
         cond = cond.concat(" AND pr.reviewSentiment = '" + ufp.sentiment + "'");
     }
 
-    if (ufp.time != null && ufp.time != 'ALL') { //TODO for time-range
-        let time = new Date() - ufp.time; //TO TEST
+    if (ufp.time != null && ufp.time != 'ALL') {
+        let time = new Date() - ufp.time;
         filterData.push({ "time" : ufp.time });
         cond = cond.concat(" AND pr.reviewDate >= '" + time + "'");
 
@@ -305,8 +315,8 @@ function createDefaultFilter() {
     let prev7days = new Date() - 7;
     filterData = new Array();
     
-    cond = cond.concat(" reviewDate >= '" + prev7days + "' ");
-    cond = cond.concat(" SORT BY reviewDate DESC ");
+    cond = cond.concat(" pr.reviewDate >= '" + prev7days + "' ");
+    cond = cond.concat(" SORT BY pr.reviewDate DESC ");
     cond = cond.concat(" LIMIT 20 ");
 
     filterData.push({ "time" : prev7days });
