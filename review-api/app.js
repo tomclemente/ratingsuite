@@ -200,13 +200,13 @@ function getUserChannelPreference() {
 function getProductReview(idUserPool, upcidPref, upidPref) {
     let filter = createFilter();
     let upcidlist = "'";
-    let upidPref = "'";
+    let upidlist = "'";
 
     upcidlist += upcidPref.join("\',\'");
     upcidlist += "'";
 
-    upidPref += upidPref.join("\',\'");
-    upidPref += "'";
+    upidlist += upidPref.join("\',\'");
+    upidlist += "'";
 
     sql = "Select s.upid,up.productAlias,upc.upcid,upc.channelName, pr.reviewID, \
             pr.reviewTitle, pr.reviewBody, pr.reviewUser, pr.reviewUserID, \
@@ -218,7 +218,7 @@ function getProductReview(idUserPool, upcidPref, upidPref) {
                     JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' \
                     JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
                     JOIN Subscription s ON up.upid = s.upid AND s.idUserPool = '" + idUserPool + "' \
-                WHERE s.upid in ('" + upidPref + "') \
+                WHERE s.upid in ('" + upidlist + "') \
                 AND upcid in ('" + upcidlist + "') " + filter + "";
             
     return executeQuery(sql).then(function(result) {
