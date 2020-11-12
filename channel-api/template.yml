@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  channel-api
+
+Transform:
+- AWS::Serverless-2016-10-31
+
+Resources:
+  channelapi:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: channel-api
+      Handler: app.handler
+      Runtime: nodejs12.x
+      MemorySize: 128
+      Timeout: 200
+      Description: A Lambda function that handles the Channel API.
+      Policies:
+        - AWSLambdaBasicExecutionRole
+        - AWSLambdaVPCAccessExecutionRole
+        - AmazonRDSFullAccess
+        - AWSLambdaExecute
+        - AmazonCognitoReadOnly
