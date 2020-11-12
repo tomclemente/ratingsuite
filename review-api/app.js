@@ -184,15 +184,15 @@ function getUserPool() {
 }
 
 function getUserChannelPreference() {
-    sql = "SELECT upid_pref, upcid_pref FROM UserChannelPreference \
+    sql = "SELECT upid, upcid FROM UserChannelPreference \
             WHERE preferenceType = 'REVIEW' \
             AND userid = '" + userid + "'";
 
     return executeQuery(sql).then(function(result) {
-        userChannelPreferenceData = result["upcid_pref"];
+        userChannelPreferenceData = result["upcid"];
         console.log("userChannelPreferenceData: ", userChannelPreferenceData);
         
-        userPreferenceData = result["upid_pref"];
+        userPreferenceData = result["upid"];
         console.log("userPreferenceData: ", userPreferenceData);
     });
 }
