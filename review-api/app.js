@@ -77,7 +77,7 @@ exports.handler = async (event, context) => {
                         getPromises.push(getUserChannelPreference());
 
                         Promise.all(getPromises).then(function() {
-                            if (userMasterData.userStatus != 'CUSTOMER' || userMasterData.status != 'BETA') {
+                            if (userMasterData.userStatus != 'CUSTOMER' && userMasterData.userStatus != 'BETA') {
                                 throw new Error("Not Authorized.");
                             }
 
