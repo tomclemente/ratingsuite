@@ -283,7 +283,7 @@ function getUpID() {
             FROM UserProduct up \
             WHERE up.upid IN (SELECT upid FROM Subscription \
                     WHERE subscriptionStatus = 'ACTIVE' AND idUserPool = '" + idUserPool + "' \
-            AND up.status = 'ACTIVE' \
+            AND up.status = 'ACTIVE' ) \
             ORDER by up.productAlias DESC \
             LIMIT 1";
     return executeQuery(sql);
