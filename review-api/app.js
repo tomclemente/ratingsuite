@@ -92,8 +92,7 @@ exports.handler = async (event, context) => {
 
                                 } else { //no user preference
                                     getUpID().then(function(data) {
-                                        let upid = data[0].upid;
-                                        getDefaultProductReviews(upid).then(function(data) {
+                                        getDefaultProductReviews(data).then(function(data) {
                                             if (data != undefined && data != null) {
                                                 data.Filters = filterData;                                                
                                             }
@@ -292,6 +291,15 @@ function getUpID() {
 function getDefaultProductReviews(upid) {
     let filter = createDefaultFilter();
 
+    console.log("getDefaultProductReviews upid: ", upid);
+
+    let upidlist = "'";
+
+    upidlist += upid.join("\',\'");
+    upidlist += "'";
+
+    console.log("getDefaultProductReviews upidlist: ", upidlist);
+
     sql = "SELECT s.upid,up.productAlias,upc.upcid,upc.channelName, \
                 pr.reviewID, pr.reviewTitle, pr.reviewBody, pr.reviewUser, \
                 pr.reviewUserID, pr.verifiedPurchase, pr.reviewDate, \
@@ -301,7 +309,7 @@ function getDefaultProductReviews(upid) {
             JOIN ProductChannel pc ON pr.pcid = pc.pcid AND pc.status = 'ACTIVE' \
             JOIN ProductChannelMapping pcm ON pc.pcid = pcm.pcid \
             JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' AND upc.upid = upid \
-            JOIN UserProduct up ON upc.upid = '" + upid + "'\
+            JOIN UserProduct up ON upc.upid in ('" + upidlist + "') \
             WHERE " + filter + " ";
             
     return executeQuery(sql).then(function(result) {
