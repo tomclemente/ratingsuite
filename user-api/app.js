@@ -80,12 +80,26 @@ exports.handler = async (event, context) => {
                     break;
     
                     case 'POST': 
+                        sql = "SELECT * FROM UserMaster where userid = '" + userid + "'";
+                        executeQuery(sql).then(function(data) {
 
-                        insertUserMaster(fname, forg).then(async function() {
-                            await insertNotification();
-                            await sendEmail(generateWelcomeParam()).then(resolve, reject);
+                          if (isEmpty(data)) {                            
+                              insertUserMaster(fname, forg).then(async function() {
+                                await insertNotification();
+                                await sendEmail(generateWelcomeParam()).then(resolve, reject);
+                              }, reject);
+
+                          } else {
+                              sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, nt.desc,n.flag \
+                                  FROM UserMaster um \
+                                  LEFT OUTER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
+                                  LEFT OUTER JOIN NotificationType nt on n.notificationTypeID = nt.notificationTypeID \
+                                  WHERE um.userid = '" + userid + "'";
+
+                              executeQuery(sql).then(resolve, reject);
+                          }
+
                         }, reject);
-
                     break;
                         
                     case 'PUT':
