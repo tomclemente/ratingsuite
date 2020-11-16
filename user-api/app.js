@@ -71,7 +71,7 @@ exports.handler = async (event, context) => {
 
                 switch (event.httpMethod) {
                     case 'GET':
-                        sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, nt.desc,n.flag \
+                        sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, um.createdOn, nt.desc,n.flag \
                                 FROM UserMaster um \
                                 LEFT OUTER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
                                 LEFT OUTER JOIN NotificationType nt on n.notificationTypeID = nt.notificationTypeID \
@@ -90,7 +90,7 @@ exports.handler = async (event, context) => {
                               }, reject);
 
                           } else {
-                              sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, nt.desc,n.flag \
+                              sql = "SELECT um.userid, um.name, um.userType, um.organization, um.userStatus, um.createdOn, nt.desc,n.flag \
                                   FROM UserMaster um \
                                   LEFT OUTER JOIN Notification n on um.userid = n.userid and n.notificationTypeID = 1 \
                                   LEFT OUTER JOIN NotificationType nt on n.notificationTypeID = nt.notificationTypeID \
