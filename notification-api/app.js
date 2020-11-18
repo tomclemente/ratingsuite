@@ -50,7 +50,8 @@ exports.handler = async (event) => {
                             FROM Notification n \
                             INNER JOIN NotificationType nt \
                                 ON (n.notificationTypeID = nt.notificationTypeID) \
-                            WHERE userid =  '" + userid +  "' ";
+                            WHERE userid =  '" + userid +  "' \
+                            AND n.notificationTypeID  =  '" + params.notificationTypeID + "' ";
 
                     executeQuery(sql).then(resolve, reject);
 
