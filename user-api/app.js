@@ -3,12 +3,14 @@ var AWS = require('aws-sdk');
 
 var sourceEmail = process.env.SOURCE_EMAIL;
 
-var connection = mysql.createConnection({
-    host: process.env.RDS_ENDPOINT,
-    user: process.env.RDS_USERNAME,
-    password: process.env.RDS_PASSWORD,
-    database: process.env.RDS_DATABASE
-});
+var pool = mysql.createPool({
+  connectionLimit : 20,
+  host     : process.env.RDS_ENDPOINT,
+  user     : process.env.RDS_USERNAME,
+  password : process.env.RDS_PASSWORD,
+  database : process.env.RDS_DATABASE,
+  debug    :  false
+});    
 
 var sql;
 var userid;
@@ -129,25 +131,22 @@ exports.handler = async (event, context) => {
                                 }, resolve);
                             }
 
-                        }, reject).then(function() { //delete all associated pcid and upid
+                        }, reject).then(async function() { //delete all associated pcid and upid
                             if (UPIDdata != undefined) {
                                 for (var x = 0; x < UPIDdata.length; x++) {
 
-                                    getAllPCID(UPIDdata[x].upid).then(function(data) {
-                                        if (data != undefined) {
-                                            
+                                    getAllPCID(UPIDdata[x].upid).then(async function(data) {
+                                        if (data != undefined) {                                            
                                             for (var y = 0; y < data.length; y++) {
-
-                                            let pcid = data[y].pcid;
-                                            unsubscribeProductChannel(pcid).then(resolve, reject);
-                                            updateProductChannel(pcid).then(resolve, reject);
-                                            
+                                                let pcid = data[y].pcid;
+                                                await unsubscribeProductChannel(pcid);
+                                                await updateProductChannel(pcid);                                                
                                             }
                                         }
                                     
                                     }, reject);
 
-                                    deleteUserProduct(UPIDdata[x].upid).then(resolve, reject);
+                                    await deleteUserProduct(UPIDdata[x].upid);
                                 }
                             } 
 
@@ -285,18 +284,27 @@ function deleteUserProduct(id) {
 }
 
 function executeQuery(sql) {
-    return new Promise((resolve, reject) => {
-        console.log("Executing query: ", sql);
-        connection.query(sql, function(err, result) {
-            if (err) {
-                console.log("SQL Error: " + err);
-                reject(err);
-            } else {
-                console.log("SQL Result: ", result[0] == undefined ? result : result[0]);
-                resolve(result);
-            }            
-        });
-    });
+  return new Promise((resolve, reject) => {
+
+      pool.getConnection((err, connection) => {
+          if (err) {
+              console.log("executeQuery error: ", err);
+              reject(err);
+              return;
+          }
+
+          connection.query(sql, function(err, result) {
+              connection.release();
+              if (!err) {
+                  console.log("Executed query: ", sql);
+                  console.log("SQL Result: ", result[0] == undefined ? result : result[0]);
+                  resolve(result);
+              } else {
+                  reject(err);
+              }               
+          });
+      });
+  });
 };
 
 function updateUserAttribute(params, userid){
