@@ -50,8 +50,7 @@ exports.handler = async (event) => {
                             FROM Notification n \
                             INNER JOIN NotificationType nt \
                                 ON (n.notificationTypeID = nt.notificationTypeID) \
-                            WHERE userid =  '" + userid +  "' \
-                            AND n.notificationTypeID  =  '" + params.notificationTypeID + "' ";
+                            WHERE userid =  '" + userid +  "' ";
 
                     executeQuery(sql).then(resolve, reject);
 
@@ -59,15 +58,30 @@ exports.handler = async (event) => {
                 
                 case 'POST':
 
-                    if (isEmpty(params.upid)) {
-                        reject({ statusCode: 500, body: "upid is missing" });
+                    if (!isEmpty(params.notificationTypeID)) {
+
+                        sql = "SELECT n.notificationTypeID, \
+                            nt.desc, n.upid, n.flag \
+                            FROM Notification n \
+                            INNER JOIN NotificationType nt \
+                                ON (n.notificationTypeID = nt.notificationTypeID) \
+                            WHERE userid =  '" + userid +  "' \
+                            AND n.notificationTypeID  =  '" + params.notificationTypeID + "' ";
+
+                        executeQuery(sql).then(resolve, reject);
+
+                    } else {
+
+                        if (isEmpty(params.upid)) {
+                            reject({ statusCode: 500, body: "upid is missing" });
+                        }
+    
+                        sql = "INSERT INTO Notification \
+                                (userid, notificationTypeID, upid, flag) \
+                                VALUES ('" + userid + "', 2, '" + params.upid + "', 1)";
+    
+                        executeQuery(sql).then(resolve, reject); 
                     }
-
-                    sql = "INSERT INTO Notification \
-                            (userid, notificationTypeID, upid, flag) \
-                            VALUES ('" + userid + "', 2, '" + params.upid + "', 1)";
-
-                    executeQuery(sql).then(resolve, reject);   
 
                 break;
 
