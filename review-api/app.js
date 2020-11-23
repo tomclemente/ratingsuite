@@ -73,8 +73,9 @@ exports.handler = async (event, context) => {
 
                         getPromises.push(getUserMaster());
                         getPromises.push(getUserFilterPreference());
-                        getPromises.push(getUserPool());
-                        getPromises.push(getUserChannelPreference());
+                        getPromises.push(getUserPool()); // Jeet - add option for more than one userpool
+                        getPromises.push(getUserChannelPreference()); // Jeet - remove upid
+                        // Jeet - to be added getUserProductPreference
 
                         Promise.all(getPromises).then(function() {
                             if (userMasterData.userStatus != 'CUSTOMER' && userMasterData.userStatus != 'BETA') {
@@ -91,7 +92,7 @@ exports.handler = async (event, context) => {
                                     }, reject);
 
                                 } else { //no user preference
-                                    getUpID().then(function(data) {
+                                    getUpID().then(function(data) { 
                                         getDefaultProductReviews(data).then(function(data) {
                                             if (data != undefined && data != null) {
                                                 data.Filters = filterData;                                                
@@ -173,9 +174,10 @@ function getUserFilterPreference() {
     });
 }
 
+// Jeet - user can have upto 2. capture more than one userpool
 function getUserPool() {
     sql = "SELECT * FROM UserPool WHERE userid = '" + userid + "'";
-
+    
     return executeQuery(sql).then(function(result) {
         userPoolData = result[0];
         console.log("userPoolData: ", userPoolData);
@@ -206,6 +208,8 @@ function getProductReview(idUserPool, upcidPref, upidPref) {
 
     upidlist += upidPref.join("\',\'");
     upidlist += "'";
+
+    // Jeet - change query to take multiple iduserpool
 
     sql = "Select s.upid,up.productAlias,upc.upcid,upc.channelName, pr.reviewID, \
             pr.reviewTitle, pr.reviewBody, pr.reviewUser, pr.reviewUserID, \
@@ -278,6 +282,7 @@ function createFilter() {
 }
 
 function getUpID() {
+    // Jeet - change query to take multiple iduserpools
     sql = "SELECT up.upid \
             FROM UserProduct up \
             WHERE up.upid IN (SELECT upid FROM Subscription \
@@ -293,6 +298,7 @@ function getDefaultProductReviews(upid) {
 
     console.log("getDefaultProductReviews upid: ", upid);
 
+    
     let upidlist = "'";
 
     upidlist += upid.join("\',\'");
@@ -326,6 +332,11 @@ function createDefaultFilter() {
     cond = cond.concat(" pr.reviewDate >= '" + prev7days + "' ");
     cond = cond.concat(" SORT BY pr.reviewDate DESC ");
     cond = cond.concat(" LIMIT 20 ");
+    
+    // Jeet - return upid, productAlias, upcid, channelName
+    // Jeet - time : "past 7 days"
+    // Jeet - sentiment : "All"
+    // Jeet - rating : "All"
 
     filterData.push({ "time" : prev7days });
     filterData.push({ "sortby" : "recent reviews"});
@@ -338,7 +349,7 @@ function createDefaultFilter() {
 
 function getProductReviewsWithParams(idUserPool, params) {
     let filter = createParamFilters(params);
-
+    // Jeet - Multiple upcids
     sql = "Select s.upid,up.productAlias,upc.upcid,upc.channelName, \
                 pr.reviewID, pr.reviewTitle, pr.reviewBody, pr.reviewUser, \
                 pr.reviewUserID, pr.verifiedPurchase, pr.reviewDate, \
