@@ -1,22 +1,26 @@
 var mysql = require('mysql');
 var AWS = require('aws-sdk');
 
-var connection = mysql.createConnection({
-    host: process.env.RDS_ENDPOINT,
-    user: process.env.RDS_USERNAME,
-    password: process.env.RDS_PASSWORD,
-    database: process.env.RDS_DATABASE
-});
+var pool = mysql.createPool({
+    connectionLimit : 20,
+    host     : process.env.RDS_ENDPOINT,
+    user     : process.env.RDS_USERNAME,
+    password : process.env.RDS_PASSWORD,
+    database : process.env.RDS_DATABASE,
+    debug    :  false
+});    
+
 
 var sql;
 var userid;
 
-var userPoolData;
+var userPoolData = [];
 var userMasterData;
 var getPromises = [];
 var productReviewData = [];
 var userChannelPreferenceData = [];
 var userPreferenceData = [];
+var userProductPreferenceData = [];
 var userFilterPreferenceData;
 var filterData = [];
 
@@ -76,6 +80,7 @@ exports.handler = async (event, context) => {
                         getPromises.push(getUserPool()); // Jeet - add option for more than one userpool
                         getPromises.push(getUserChannelPreference()); // Jeet - remove upid
                         // Jeet - to be added getUserProductPreference
+                        getPromises.push(getUserProductPreference(userChannelPreferenceData)); 
 
                         Promise.all(getPromises).then(function() {
                             if (userMasterData.userStatus != 'CUSTOMER' && userMasterData.userStatus != 'BETA') {
@@ -84,7 +89,7 @@ exports.handler = async (event, context) => {
 
                             if (params == undefined || params == null) {
                                 if (userFilterPreferenceData != null || userFilterPreferenceData != undefined) {
-                                    getProductReview(userPoolData.idUserPool, userChannelPreferenceData, userPreferenceData).then(function(data) {
+                                    getProductReview(userChannelPreferenceData, userPreferenceData).then(function(data) {
                                         if (data != undefined && data != null) {
                                             data.Filters = filterData;                                                
                                         }
@@ -103,7 +108,7 @@ exports.handler = async (event, context) => {
                                 }
 
                             } else {
-                                getProductReviewsWithParams(userPoolData.idUserPool, params).then(function(data) {
+                                getProductReviewsWithParams(params).then(function(data) {
                                     if (data != undefined && data != null) {
                                         data.Filters = filterData;                                                
                                     }
@@ -143,13 +148,24 @@ function isEmpty(data) {
 
 function executeQuery(sql) {
     return new Promise((resolve, reject) => {
-        console.log("Executing query: ", sql);
-        connection.query(sql, function(err, result) {
+
+        pool.getConnection((err, connection) => {
             if (err) {
-                console.log("SQL Error: " + err);
+                console.log("executeQuery error: ", err);
                 reject(err);
+                return;
             }
-            resolve(result);
+
+            connection.query(sql, function(err, result) {
+                connection.release();
+                if (!err) {
+                    console.log("Executed query: ", sql);
+                    console.log("SQL Result: ", result[0] == undefined ? result : result[0]);
+                    resolve(result);
+                } else {
+                    reject(err);
+                }               
+            });
         });
     });
 };
@@ -176,16 +192,16 @@ function getUserFilterPreference() {
 
 // Jeet - user can have upto 2. capture more than one userpool
 function getUserPool() {
-    sql = "SELECT * FROM UserPool WHERE userid = '" + userid + "'";
+    sql = "SELECT idUserPool FROM UserPool WHERE userid = '" + userid + "'";
     
     return executeQuery(sql).then(function(result) {
-        userPoolData = result[0];
+        userPoolData = result["idUserPool"];
         console.log("userPoolData: ", userPoolData);
     });
 }
 
 function getUserChannelPreference() {
-    sql = "SELECT upid, upcid FROM UserChannelPreference \
+    sql = "SELECT upcid FROM UserChannelPreference \
             WHERE preferenceType = 'REVIEW' \
             AND userid = '" + userid + "'";
 
@@ -193,21 +209,41 @@ function getUserChannelPreference() {
         userChannelPreferenceData = result["upcid"];
         console.log("userChannelPreferenceData: ", userChannelPreferenceData);
         
-        userPreferenceData = result["upid"];
-        console.log("userPreferenceData: ", userPreferenceData);
+        // userPreferenceData = result["upid"];
+        // console.log("userPreferenceData: ", userPreferenceData);
     });
 }
 
-function getProductReview(idUserPool, upcidPref, upidPref) {
+function getUserProductPreference(upcid) {
+        
+    let upcidlist = "'";
+
+    upcidlist += upcid.join("\',\'");
+    upcidlist += "'";
+
+    sql = "SELECT * FROM UserProductChannel \
+            WHERE upcid in ('" + upcidlist + "') ";
+
+    return executeQuery(sql).then(function(result) {
+        userProductPreferenceData = result;
+        console.log("userProductPreferenceData: ", userProductPreferenceData);
+    });
+}
+
+function getProductReview(upcidPref, upidPref) {
     let filter = createFilter();
     let upcidlist = "'";
     let upidlist = "'";
+    let userpoollist = "'";
 
     upcidlist += upcidPref.join("\',\'");
     upcidlist += "'";
 
     upidlist += upidPref.join("\',\'");
     upidlist += "'";
+
+    userpoollist += userPoolData.join("\',\'");
+    userpoollist += "'";
 
     // Jeet - change query to take multiple iduserpool
 
@@ -220,7 +256,7 @@ function getProductReview(idUserPool, upcidPref, upidPref) {
                     JOIN ProductChannelMapping pcm ON pc.pcid = pcm.pcid \
                     JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' \
                     JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
-                    JOIN Subscription s ON up.upid = s.upid AND s.idUserPool = '" + idUserPool + "' \
+                    JOIN Subscription s ON up.upid = s.upid AND s.idUserPool in ('" + userpoollist + "') \
                 WHERE s.upid in ('" + upidlist + "') \
                 AND upcid in ('" + upcidlist + "') " + filter + "";
             
@@ -283,10 +319,15 @@ function createFilter() {
 
 function getUpID() {
     // Jeet - change query to take multiple iduserpools
+    let userpoollist = "'";
+
+    userpoollist += userPoolData.join("\',\'");
+    userpoollist += "'";
+
     sql = "SELECT up.upid \
             FROM UserProduct up \
             WHERE up.upid IN (SELECT upid FROM Subscription \
-                    WHERE subscriptionStatus = 'ACTIVE' AND idUserPool = '" + idUserPool + "' \
+                    WHERE subscriptionStatus = 'ACTIVE' AND idUserPool in ('" + userpoollist + "') \
             AND up.status = 'ACTIVE' ) \
             ORDER by up.productAlias DESC \
             LIMIT 1";
@@ -304,6 +345,8 @@ function getDefaultProductReviews(upid) {
     upidlist += upid.join("\',\'");
     upidlist += "'";
 
+    filterData.push({ "upid" : upidlist });
+
     console.log("getDefaultProductReviews upidlist: ", upidlist);
 
     sql = "SELECT s.upid,up.productAlias,upc.upcid,upc.channelName, \
@@ -320,6 +363,11 @@ function getDefaultProductReviews(upid) {
             
     return executeQuery(sql).then(function(result) {
         productReviewData = result;
+
+        filterData.push({ "productAlias" : productReviewData["productAlias"] });
+        filterData.push({ "upcid" : productReviewData["upcid"] });
+        filterData.push({ "channelName" : productReviewData["channelName"] });
+
         console.log("productReviewData: ", productReviewData);
     });
 }
@@ -338,7 +386,9 @@ function createDefaultFilter() {
     // Jeet - sentiment : "All"
     // Jeet - rating : "All"
 
-    filterData.push({ "time" : prev7days });
+    filterData.push({ "time" : "past 7 days" });
+    filterData.push({ "sentiment" : "All"});
+    filterData.push({ "rating" : "All"});
     filterData.push({ "sortby" : "recent reviews"});
     filterData.push({ "limit" : "20" });
 
@@ -347,9 +397,19 @@ function createDefaultFilter() {
     return cond;
 }
 
-function getProductReviewsWithParams(idUserPool, params) {
+function getProductReviewsWithParams(params) {
     let filter = createParamFilters(params);
     // Jeet - Multiple upcids
+
+    let upclist = "'";
+    let userpoollist = "'";
+    
+    upclist += userChannelPreferenceData.join("\',\'");
+    upclist += "'";
+
+    userpoollist += userPoolData.join("\',\'");
+    userpoollist += "'";
+
     sql = "Select s.upid,up.productAlias,upc.upcid,upc.channelName, \
                 pr.reviewID, pr.reviewTitle, pr.reviewBody, pr.reviewUser, \
                 pr.reviewUserID, pr.verifiedPurchase, pr.reviewDate, \
@@ -360,9 +420,9 @@ function getProductReviewsWithParams(idUserPool, params) {
             JOIN ProductChannelMapping pcm ON pc.pcid = pcm.pcid \
             JOIN UserProductChannel upc ON pcm.upcid = upc.upcid AND upc.status = 'ACTIVE' \
             JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
-            JOIN Subscription s ON up.upid = s.upid AND s.idUserPool = '" + idUserPool + "' \
+            JOIN Subscription s ON up.upid = s.upid AND s.idUserPool in ('" + userpoollist + "') \
             WHERE up.upid = '" + params.upid + "' \
-            AND s.subscriptionStatus = ACTIVE AND upc.upcid = '" + params.upcid + "' " + filter + " ";
+            AND s.subscriptionStatus = ACTIVE AND upc.upcid in ('" + upclist + "') " + filter + " ";
             
     return executeQuery(sql).then(function(result) {
         productReviewData = result;
