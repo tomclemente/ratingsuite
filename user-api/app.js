@@ -120,32 +120,29 @@ exports.handler = async (event, context) => {
                         deletePromises.push(getNotification());
                         deletePromises.push(getAllUPID());
 
-                        Promise.all(deletePromises).then(function() {
+                        Promise.all(deletePromises).then(async function() {
                             if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
-                                getSubscription(userPoolData.idUserPool).then(function() {
-                                    if (( subscriptionData != undefined) ||
-                                        (userMasterData.usertype != 'E')) {
-                                        
-                                        updateCancelledSubscription(userPoolData.idUserPool).then(resolve,reject);
+                                await getSubscription(userPoolData.idUserPool).then(async function() {
+
+                                    if ((subscriptionData != undefined) ||
+                                        (userMasterData.usertype != 'E')) {                                      
+                                        await updateCancelledSubscription(userPoolData.idUserPool);
                                     }
-                                }, resolve);
+                                });
                             }
 
                         }, reject).then(async function() { //delete all associated pcid and upid
                             if (UPIDdata != undefined) {
                                 for (var x = 0; x < UPIDdata.length; x++) {
-
-                                    getAllPCID(UPIDdata[x].upid).then(async function(data) {
-                                        if (data != undefined) {                                            
+                                    await getAllPCID(UPIDdata[x].upid).then(async function(data) {
+                                        if (data != undefined) {                                         
                                             for (var y = 0; y < data.length; y++) {
                                                 let pcid = data[y].pcid;
                                                 await unsubscribeProductChannel(pcid);
                                                 await updateProductChannel(pcid);                                                
                                             }
                                         }
-                                    
-                                    }, reject);
-
+                                    });
                                     await deleteUserProduct(UPIDdata[x].upid);
                                 }
                             } 
