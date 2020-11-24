@@ -384,7 +384,7 @@ function createDefaultFilter() {
     // Jeet - sentiment : "All"
     // Jeet - rating : "All"
 
-    filterData.push({ "time" : "past 7 days" });
+    filterData.push({ "time" : "7" });
     filterData.push({ "sentiment" : "All"});
     filterData.push({ "rating" : "All"});
     filterData.push({ "sortby" : "recent reviews"});
@@ -433,19 +433,26 @@ function createParamFilters(params) {
     filterData = params;
     console.log("createParamFilters params: ", params);
 
-    if (params.timeFrom != null) {
-        cond = cond.concat(" AND pr.reviewDate >= '" + params.timeFrom + "'");
-    }
+    if (params.time != null && params.time != 'Range') {
+        let time = new Date() - params.time;
+        cond = cond.concat(" AND pr.reviewDate >= '" + time + "'");
+
+    } else {
+        if (params.timeFrom != null) {
+            cond = cond.concat(" AND pr.reviewDate >= '" + params.timeFrom + "'");
+        }
     
-    if (params.timeTo != null) {
-        cond = cond.concat(" AND pr.reviewDate <= '" + params.timeTo + "'");
+        if (params.timeTo != null) {
+            cond = cond.concat(" AND pr.reviewDate <= '" + params.timeTo + "'");
+        }
     }
+
  
-    if (params.rating != undefined) {
+    if (params.rating != null && params.rating != 'ALL') {
         cond = cond.concat(" AND pr.reviewRating = '" + params.rating + "'");
     }
 
-    if (params.sentiment != null) {
+    if (params.sentiment != null && params.sentiment != 'ALL') {
         cond =  cond.concat(" AND pr.reviewSentiment = '" + params.sentiment + "'");
     }
 
