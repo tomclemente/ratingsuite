@@ -80,7 +80,7 @@ exports.handler = async (event, context) => {
                         getPromises.push(getUserPool()); // Jeet - add option for more than one userpool
                         getPromises.push(getUserChannelPreference()); // Jeet - remove upid
                         // Jeet - to be added getUserProductPreference
-                        getPromises.push(getUserProductPreference(userChannelPreferenceData)); 
+                        getPromises.push(getUserProductPreference()); 
 
                         Promise.all(getPromises).then(function() {
                             if (userMasterData.userStatus != 'CUSTOMER' && userMasterData.userStatus != 'BETA') {
@@ -89,7 +89,7 @@ exports.handler = async (event, context) => {
 
                             if (params == undefined || params == null) {
                                 if (userFilterPreferenceData != null || userFilterPreferenceData != undefined) {
-                                    getProductReview(userChannelPreferenceData, userPreferenceData).then(function(data) {
+                                    getProductReview(userChannelPreferenceData, userProductPreferenceData).then(function(data) {
                                         if (data != undefined && data != null) {
                                             data.Filters = filterData;                                                
                                         }
@@ -214,18 +214,16 @@ function getUserChannelPreference() {
     });
 }
 
-function getUserProductPreference(upcid) {
+function getUserProductPreference() {
         
-    let upcidlist = "'";
 
-    upcidlist += upcid.join("\',\'");
-    upcidlist += "'";
-
-    sql = "SELECT * FROM UserProductChannel \
-            WHERE upcid in ('" + upcidlist + "') ";
+    sql = "SELECT upid FROM UserProductPreference \
+            WHERE preferenceType = 'REVIEW' \
+            AND userid = '" + userid + "'";
+        
 
     return executeQuery(sql).then(function(result) {
-        userProductPreferenceData = result;
+        userProductPreferenceData = result["upid"];
         console.log("userProductPreferenceData: ", userProductPreferenceData);
     });
 }
@@ -282,7 +280,7 @@ function createFilter() {
         cond = cond.concat(" AND pr.reviewSentiment = '" + ufp.sentiment + "'");
     }
 
-    if (ufp.time != null && ufp.time != 'ALL') {
+    if (ufp.time != null && ufp.time != 'Range') {
         let time = new Date() - ufp.time;
         filterData.push({ "time" : ufp.time });
         cond = cond.concat(" AND pr.reviewDate >= '" + time + "'");
