@@ -1,38 +1,37 @@
 var mysql = require('mysql');
 var AWS = require('aws-sdk');
 
-var sourceEmail = "noreply@ratingsuite.com";
-
-var connection = mysql.createConnection({
-    host: process.env.RDS_ENDPOINT,
-    user: process.env.RDS_USERNAME,
-    password: process.env.RDS_PASSWORD,
-    database: process.env.RDS_DATABASE
-});
+var pool = mysql.createPool({
+    connectionLimit : 20,
+    host     : process.env.RDS_ENDPOINT,
+    user     : process.env.RDS_USERNAME,
+    password : process.env.RDS_PASSWORD,
+    database : process.env.RDS_DATABASE,
+    debug    :  false
+});    
 
 var sql;
 var userid;
-var username;
-var deletePromises = [];
-var userPoolData;
-var userMasterData;
-var subscriptionData;
-var notificationData;
-var userProductChannelData;
-var activeSubscriptionData;
-var productChannelMappingData;
+var respObj = {};
+var preferenceType = null;
 
+//cognito information
+var forg;
+var fname;
+var femail;
 
 exports.handler = async (event, context) => {
 
-    username = event.requestContext.authorizer.claims.username;
-    userid = event.requestContext.authorizer.claims.username;
-    
     let params = JSON.parse(event["body"]);
-    
     console.log('Received event:', JSON.stringify(event, null, 2));
     
-    if (username == null) {
+    if (isEmpty(event.requestContext.authorizer.claims.username)) {
+      userid = event.requestContext.authorizer.claims["cognito:username"];
+    } else {
+      userid = event.requestContext.authorizer.claims.username;
+    }
+    
+    if (userid == null) {
         throw new Error("Username missing. Not authenticated.");
     }
     
@@ -41,101 +40,175 @@ exports.handler = async (event, context) => {
 
     const headers = {
         'Content-Type': 'application/json',
+        "Access-Control-Allow-Headers" : "Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "OPTIONS,POST,GET,PUT,DELETE"
     };
 
     try {
-        
+
         body = await new Promise((resolve, reject) => {
 
-            switch (event.httpMethod) {
+            getCognitoUser().then(function(data) {              
+                console.log("Cognito UserAttributes: ", data.UserAttributes);
+                for (var x = 0; x < data.UserAttributes.length; x++) {
+                    let attrib = data.UserAttributes[x];
 
-                case 'GET': // Return user details from usermaster based on userid
-                    sql = "SELECT * FROM UserMaster where userid = '" + username + "'";
-                    executeQuery(sql).then(resolve,reject);
-                break;
+                    if (attrib.Name == 'custom:name') {
+                        fname = attrib.Value;
+                    } else if (attrib.Name == 'email') {
+                        femail = attrib.Value;
+                    } else if (attrib.Name == 'custom:Organization') {
+                        forg = attrib.Value;
+                    }
+                }
 
-                case 'POST': // Read user details from the auth token
-                            // Create an entry in usermaster
-                    insertUserMaster(params,username).then(function() {
+            }).then(function() {
+                switch (event.httpMethod) {
 
-                        sql = "SELECT * FROM UserPool where userid = '" + username + "'";
-                        executeQuery(sql).then(function(data) {
-                            //insertNotification(username, data.upid, params);
+                    case 'GET':
+                        getUser().then(async function(data) {
 
-                            var emailParam = generateWelcomeParam(username);
-                            sendEmail(emailParam).then(resolve,reject);
-                        })    
-                    },reject);
-                break;
-                    
-                case 'PUT': // Update cognito record and usermaster table        
-                    updateUserAttribute(params.attributes, username, process.env.COGNITO_POOLID).then(function() {
-                        sql = "UPDATE UserMaster SET userid = '" + params.email + "' WHERE userid = '" + username + "'";
-                        executeQuery(sql).then(resolve, reject);  
-                    }, reject);
-                break;
-                
-                case 'DELETE': 
+                            if (!isEmpty(data) && 
+                                data[0]["userStatus"] != 'CUSTOMER' && 
+                                data[0]["userStatus"] != 'BETA') {
 
-                    deletePromises.push(getUserMaster());
-                    deletePromises.push(getUserPool());
-                    deletePromises.push(getNotification());
-                    
-                    Promise.all(deletePromises).then(function() {
-                        if (userPoolData != undefined && userPoolData.idUserPool != undefined) {
-                            getSubscription(userPoolData.idUserPool).then(function() {
-                                if ((userPoolData.type == 'user' && 
-                                    subscriptionData != undefined && subscriptionData.subscriptionType =='pp1') ||
-                                    (userPoolData.type == 'admin' && userMasterData.usertype != 'E')) {
-                                    
-                                    updateCancelledSubscription(userPoolData.idUserPool).then(resolve,reject);
-                                }
-                            });
-                        }
-                        
-                        //send an email and delete cognito user pool
-                        if (notificationData != undefined && notificationData.flag == '1') {
-                            deleteCognitoUser();
-                            var emailParam = generateGoodbyeParam();
-                            sendEmail(emailParam).then(resolve,reject);
-                        }      
-
-                    }).then(function() { //do some cleanup
-                        deleteUserMaster();
-
-                    }).then(function() { 
-                        getActiveSubscription(username).then(function() {
-                            if (activeSubscriptionData == undefined || activeSubscriptionData == null) {
-                                deleteUserProduct(username);
-                            }                            
-                        }).then(function() {
-
-                            if (activeSubscriptionData != undefined && activeSubscriptionData.upid != null) {
-                                getUserProductChannel(activeSubscriptionData.upid).then(function() {
-
-                                    if (userProductChannelData != undefined && userProductChannelData.upcid != null) {
-                                        getProductChannelMapping(userProductChannelData.upcid).then(function() {
-
-                                            if (productChannelMappingData != undefined && productChannelMappingData.pcid != null) {
-                                                updateProductChannel(productChannelMappingData.pcid).then(resolve,reject);
-                                            }
-                                        });
-                                    }   
-                                });
+                                throw new Error("Not authorized.");
                             }
+
+                            if (!isEmpty(data)) {
+                                await getUserFilterPreference(  q);
+                                await getUserChannelPreference(params);
+                                await getUserProductPreference(params);
+
+                                resolve(respObj);
+                            }
+
+                        }, reject).catch(err => {
+                            reject({ statusCode: 500, body: err.message });
                         });
-                    });     
-                    
-                break;
-                    
-                default:
-                    throw new Error(`Unsupported method "${event.httpMethod}"`);
-            }    
+
+                    break;
+    
+                    case 'POST':
+
+                        console.log("upid list: ", params.upid);
+                        console.log("upcid list: ", params.upcid);
+
+                        getUser().then(async function(data) {
+
+                            if (!isEmpty(data) && 
+                                data[0]["userStatus"] != 'CUSTOMER' && 
+                                data[0]["userStatus"] != 'BETA') {
+
+                                throw new Error("Not authorized.");
+                            }
+
+                            if (!isEmpty(params.preferenceType)) {
+                                preferenceType = params.preferenceType;
+                            } else {
+                                throw new Error("preferenceType is missing.");
+                            }
+                            
+                            if (preferenceType != "REVIEW" && 
+                                preferenceType != "INSIGHT" && 
+                                preferenceType != "COMPARISON") {                                    
+                                    throw new Error("Invalid Parameter.");
+                            }
+
+                            if (!isEmpty(preferenceType)) {
+                                await deleteUserFilterPreference();                        
+                                await deleteUserChannelPreference();                            
+                                await deleteUserProductPreference();
+                            }                            
+
+                            if (!isEmpty(params.filter)) {
+                                await insertUserFilterPreference(params);
+                            } 
+                            
+                            let uppromises = [];
+                            if (!isEmpty(params.upid)) {
+                                var upid = params.upid;
+                                upid.forEach(function(entry) {
+                                    console.log("insertUserProductPreference upid: ", entry);
+                                    uppromises.push(insertUserProductPreference(entry));
+                                });
+
+                                await Promise.all(uppromises).catch(err => {
+                                    reject({ statusCode: 500, body: err.message });
+                                });    
+                            }                
+
+                            let ucpromises = [];
+                            if (!isEmpty(params.upcid)) {
+                                var upcid = params.upcid;
+                                upcid.forEach(function(entry) {
+                                    console.log("insertUserChannelPreference upcid: ", entry);
+                                    ucpromises.push(insertUserChannelPreference(entry));
+                                });
+
+                                await Promise.all(ucpromises).catch(err => {
+                                    reject({ statusCode: 500, body: err.message });
+                                });  
+                            }
+                
+                        }, reject).then(function() {
+                            resolve(params);
+                        }).catch(err => {
+                            reject({ statusCode: 500, body: err.message });
+                        });                       
+
+                    break;
+                        
+                    case 'DELETE':
+
+                        getUser().then(async function(data) {
+
+                            if (!isEmpty(data) && 
+                                data[0]["userStatus"] != 'CUSTOMER' && 
+                                data[0]["userStatus"] != 'BETA') {
+
+                                throw new Error("Not authorized.");
+                            }
+
+                            if (!isEmpty(params.preferenceType)) {
+                                preferenceType = params.preferenceType;
+                            } else {
+                                throw new Error("preferenceType is missing.");
+                            }
+
+                            if (preferenceType != "REVIEW" && 
+                                preferenceType != "INSIGHT" && 
+                                preferenceType != "COMPARISON") {                                    
+                                    throw new Error("Invalid Parameter.");
+                            }
+
+                            if (!isEmpty(preferenceType)) {
+                                await deleteUserFilterPreference();                        
+                                await deleteUserChannelPreference();                            
+                                await deleteUserProductPreference();
+                            }       
+
+                        }, reject).then(function() {
+                            resolve(params);
+                        }).catch(err => {
+                            reject({ statusCode: 500, body: err.message });
+                        }); 
+
+                    break;
+
+
+                    default:
+                        throw new Error(`Unsupported method "${event.httpMethod}"`);
+                }    
+            }, reject);
         });
 
     } catch (err) {
         statusCode = '400';
-        body = err.message;
+        body = err;
+        console.log("body return 1", err);
+        
     } finally {
         body = JSON.stringify(body);
     }
@@ -147,205 +220,149 @@ exports.handler = async (event, context) => {
     };
 };
 
-function updateProductChannel(pcid) {
-    sql = "UPDATE ProductChannel SET status = 'inactive' where pcid = '" + pcid + "'";
-    return executeQuery(sql);
-}
-
-function getUserProductChannel(upid) {
-    sql = "SELECT * FROM UserProductChannel where upid = '" + upid + "'";
-    return executeQuery(sql).then(function(result) {
-        userProductChannelData = result[0];
-        console.log("userProductChannelData: ", userProductChannelData);
-    });
-}
-
-function getProductChannelMapping(upcid) {
-    sql = "SELECT * FROM ProductChannelMapping where upcid = '" + upcid + "'";
-    return executeQuery(sql).then(function(result) {
-        productChannelMappingData = result[0];
-        console.log("productChannelMappingData: ", productChannelMappingData);
-    });
-}
-
-function deleteUserMaster() {
-    sql = "DELETE FROM UserMaster where userid = '" + username + "'";
-    return executeQuery(sql);
-}
-
-function getUserMaster() {
-    sql = "SELECT * FROM UserMaster where userid = '" + userid + "'";                    
-    return executeQuery(sql).then(function(result) {
-        userMasterData = result[0];
-        console.log("UserMasterData: ", userMasterData);
-    });
-}
-
-function getUserPool() {
-    sql = "SELECT * FROM UserPool where userid = '" + userid + "'";
-    return executeQuery(sql).then(function(result) {
-        userPoolData = result[0];
-        console.log("userPoolData: ", userPoolData);
-    });
-}
-
-function getSubscription(idUserPool) {    
-    sql = "SELECT * FROM Subscription where idUserPool = '" + idUserPool + "'";
-    return executeQuery(sql).then(function(result) {
-        subscriptionData = result[0];
-        console.log("subscriptionData: ", subscriptionData);
-    });
-}
-
-function getNotification() {
-    sql = "SELECT * FROM Notification where userid = '" + userid + "'";
-    return executeQuery(sql).then(function(result) {
-        notificationData = result[0];
-        console.log("notificationData: ", notificationData);
-    });
-}
-
-function updateCancelledSubscription(idUserPool) {    
-    sql = "UPDATE Subscription SET subscriptionStatus = 'cancelled' where idUserPool = '" + idUserPool + "'";
-    return executeQuery(sql);
-}
-
-function deleteCognitoUser() {
-    const cognito = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
-    cognito.adminDeleteUser({
-        UserPoolId: process.env.COGNITO_POOLID,
-        Username: 'sample', //should be username, for testing purposes only
-    });
-}
-
-function getActiveSubscription(id) {    
-    sql = "SELECT * FROM Subscription where upid = '" + id + "' and subscriptionStatus = 'active'";
-    return executeQuery(sql).then(function(result) {
-        subscriptionData = result[0];
-        console.log("activeSubscriptionData: ", activeSubscriptionData);
-    });
-}
-
-function deleteUserProduct(id) {
-    sql = "DELETE FROM UserProduct  where upid = '" + id + "'";
-    return executeQuery(sql);
-}
-
-function deleteProductMaster(id) {
-    sql = "DELETE FROM ProductMaster  where upid = '" + id + "'";
-    return executeQuery(sql);
+function isEmpty(data) {
+    if (data == undefined || data == null || data.length == 0) {
+        return true;
+    }
+    return false;
 }
 
 function executeQuery(sql) {
     return new Promise((resolve, reject) => {
-        console.log("Executing query: ", sql);
-        connection.query(sql, function(err, result) {
+
+        pool.getConnection((err, connection) => {
             if (err) {
-                console.log("SQL Error: " + err);
+                console.log("executeQuery error: ", err);
                 reject(err);
+                return;
             }
-            resolve(result);
+
+            connection.query(sql, function(err, result) {
+                connection.release();
+                if (!err) {
+                    console.log("Executed query: ", sql);
+                    console.log("SQL Result: ", result[0] == undefined ? result : result[0]);
+                    resolve(result);
+                } else {
+                    reject(err);
+                }               
+            });
         });
     });
 };
 
-function updateUserAttribute(userAttributes, username, userPoolId){
-    let cognitoISP = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
-    return new Promise((resolve, reject) => {
-        console.log("userAttributes: ", userAttributes);
-        let params = {
-            UserAttributes: userAttributes,
-            UserPoolId: userPoolId,
-            Username: username
-        };
-
-        cognitoISP.adminUpdateUserAttributes(params, (err, data) => err ? 
-        reject(err) : resolve(data));
-    });
-};
-
-function insertUserMaster(params, username){
-    return new Promise((resolve, reject) => {
-       
-        let sql = "INSERT INTO UserMaster (userid, name, userStatus, userType, organization, lastLogin, createdOn) \
-            VALUES (\
-                '" + username + "',\
-                '" + params.name + "',\
-                'NEW',\
-                'NE',\
-                '" + params.organization + "',\
-                '" + params.lastLogin + "',\
-                '" + params.created + "')";
-
-        executeQuery(sql).then(resolve,reject);
-    });
-};
-
-function insertNotification(username, upid, params){
-    return new Promise((resolve, reject) => {
-       
-        let sql = "INSERT INTO Notification (userid, notificationTypeID, upid, flag, frequency, lastUpdatedDt) \
-            VALUES (\
-                '" + username + "',\
-                '1',\
-                '" + upid + "',\
-                '1',\
-                '" + params.frequency + "',\
-                '" + params.lastUpdatedDt + "')";
-
-        executeQuery(sql).then(resolve,reject);
-    });
-};
-
-function sendEmail(params) {
-    return new Promise((resolve, reject) => {
-        var ses = new AWS.SES({region: 'us-east-1'});
-        ses.sendEmail(params, function (err, data) {
+function executePostQuery(sql, post) {
+    return new Promise((resolve, reject) => {                
+        pool.getConnection((err, connection) => {
             if (err) {
-                console.log(err);
+                console.log("executePostQuery error: ", err);
                 reject(err);
-            } else {
-                console.log(data);
-                resolve(data);
+                return;
             }
-        });
-    });
-};
 
-function generateWelcomeParam() {
-    var param = {
-        Destination: {
-            ToAddresses: [username]
-        },
-        Message: {
-            Body: {
-                Text: { Data: "Welcome to RatingSuite!"
-
+            connection.query(sql, post, function (err, result) {
+                connection.release();
+                if (!err) {
+                    console.log("Executed post query: ", sql + " " + JSON.stringify(post));
+                    console.log("SQL Result: ", result);
+                    resolve(result.affectedRows);
+                } else {
+                    reject(err);
                 }
-            },
-            Subject: { Data: "Welcome Email" }
-        },
-        Source: sourceEmail
-    };
+            });
+        }); 
+    });
+};
 
-    return param;
+function getCognitoUser() {
+    const cognito = new AWS.CognitoIdentityServiceProvider({ region: process.env.REGION });
+
+    return cognito.adminGetUser({
+        UserPoolId: process.env.COGNITO_POOLID,
+        Username: userid, 
+        
+    }).promise();
 }
 
-function generateGoodbyeParam() {
-    var param = {
-        Destination: {
-            ToAddresses: [username]
-        },
-        Message: {
-            Body: {
-                Text: { Data: "Sad to see you go!"
+function getUser() {
+    sql = "SELECT userStatus from UserMaster WHERE userid = '" + userid + "'";
+    return executeQuery(sql);
+}
 
-                }
-            },
-            Subject: { Data: "Bye Email" }
-        },
-        Source: sourceEmail
-    };
+function getUserFilterPreference(params) {
+    sql = "SELECT * FROM UserFilterPreference \
+            WHERE userid = '" + userid + "' \
+            AND preferenceType  = '" + params.preferenceType + "'";
 
-    return param;
+    return executeQuery(sql).then(function(result) {
+        respObj.push(result);
+        console.log("getUserFilterPreference: ", result);
+        console.log("respObj: ", respObj);
+    });
+}
+
+function getUserChannelPreference(params) {
+    sql = "SELECT upcid from UserChannelPreference \
+            WHERE userid = '" + userid + "' \
+            AND preferenceType  = '" + params.preferenceType + "'";
+
+    return executeQuery(sql).then(function(result) {
+        respObj.push(result);
+        console.log("getUserChannelPreference: ", result);
+        console.log("respObj: ", respObj);
+    });
+}
+
+function getUserProductPreference(params) {
+    sql = "SELECT upcid from UserProductPreference \
+            WHERE userid = '" + userid + "' \
+            AND preferenceType  = '" + params.preferenceType + "'";
+
+    return executeQuery(sql).then(function(result) {
+        respObj.push(result);
+        console.log("getUserProductPreference: ", result);
+        console.log("respObj: ", respObj);
+    });
+}
+
+function deleteUserFilterPreference() {
+    sql = "DELETE from UserFilterPreference  \
+            WHERE userid = '" + userid + "' \
+            AND preferenceType  = '" + preferenceType + "'";
+    return executeQuery(sql);
+}
+
+function deleteUserChannelPreference() {
+    sql = "DELETE from UserChannelPreference  \
+            WHERE userid = '" + userid + "' \
+            AND preferenceType  = '" + preferenceType + "'";
+    return executeQuery(sql);
+}
+
+function deleteUserProductPreference() {
+    sql = "DELETE from UserProductPreference  \
+            WHERE userid = '" + userid + "' \
+            AND preferenceType  = '" + preferenceType + "'";
+    return executeQuery(sql);
+}
+
+function insertUserFilterPreference(params) {
+    var post = {preferenceType: params.preferenceType, 
+                time: params.time, timeFrom: params.timeFrom, 
+                timeTo: params.timeTo, rating: params.rating,
+                sentiment: params.sentiment, sort: params.sort };
+    sql = "INSERT INTO UserFilterPreference SET ?";
+    return executePostQuery(sql, post); 
+}
+
+function insertUserProductPreference(upid) {
+    var post = {userid: userid, upid: upid, preferenceType: preferenceType};
+    sql = "INSERT INTO UserProductPreference SET ?";
+    return executePostQuery(sql, post);   
+}
+
+function insertUserChannelPreference(upcid) {
+    var post = {userid: userid, upcid: upcid, preferenceType: preferenceType};
+    sql = "INSERT INTO UserChannelPreference SET ?";
+    return executePostQuery(sql, post); 
 }
