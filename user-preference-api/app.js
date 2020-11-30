@@ -12,7 +12,7 @@ var pool = mysql.createPool({
 
 var sql;
 var userid;
-var respObj = {};
+var respObj = [];
 var preferenceType = null;
 
 //cognito information
@@ -66,97 +66,100 @@ exports.handler = async (event, context) => {
             }).then(function() {
                 switch (event.httpMethod) {
 
-                    case 'GET':
-                        getUser().then(async function(data) {
-
-                            if (!isEmpty(data) && 
-                                data[0]["userStatus"] != 'CUSTOMER' && 
-                                data[0]["userStatus"] != 'BETA') {
-
-                                throw new Error("Not authorized.");
-                            }
-
-                            if (!isEmpty(data)) {
-                                await getUserFilterPreference(  q);
-                                await getUserChannelPreference(params);
-                                await getUserProductPreference(params);
-
-                                resolve(respObj);
-                            }
-
-                        }, reject).catch(err => {
-                            reject({ statusCode: 500, body: err.message });
-                        });
-
-                    break;
-    
                     case 'POST':
 
-                        console.log("upid list: ", params.upid);
-                        console.log("upcid list: ", params.upcid);
+                        if (isEmpty(params.upid) && isEmpty(params.upid)) { // FOR GET REQUEST
 
-                        getUser().then(async function(data) {
+                            getUser().then(async function(data) {
 
-                            if (!isEmpty(data) && 
-                                data[0]["userStatus"] != 'CUSTOMER' && 
-                                data[0]["userStatus"] != 'BETA') {
+                                if (!isEmpty(data) && 
+                                    data[0]["userStatus"] != 'CUSTOMER' && 
+                                    data[0]["userStatus"] != 'BETA') {
+    
+                                    throw new Error("Not authorized.");
+                                }
+    
+                                if (!isEmpty(data)) {
+                                    await getUserFilterPreference(params);
+                                    await getUserChannelPreference(params);
+                                    await getUserProductPreference(params);
+    
+                                    resolve(respObj);
+                                }
+    
+                            }, reject).catch(err => {
+                                reject({ statusCode: 500, body: err.message });
+                            });
 
-                                throw new Error("Not authorized.");
-                            }
+                        } else {
 
-                            if (!isEmpty(params.preferenceType)) {
-                                preferenceType = params.preferenceType;
-                            } else {
-                                throw new Error("preferenceType is missing.");
-                            }
-                            
-                            if (preferenceType != "REVIEW" && 
-                                preferenceType != "INSIGHT" && 
-                                preferenceType != "COMPARISON") {                                    
-                                    throw new Error("Invalid Parameter.");
-                            }
+       
+                            console.log("upid list: ", params.upid);
+                            console.log("upcid list: ", params.upcid);
 
-                            if (!isEmpty(preferenceType)) {
-                                await deleteUserFilterPreference();                        
-                                await deleteUserChannelPreference();                            
-                                await deleteUserProductPreference();
-                            }                            
+                            getUser().then(async function(data) {
 
-                            if (!isEmpty(params.filter)) {
-                                await insertUserFilterPreference(params);
-                            } 
-                            
-                            let uppromises = [];
-                            if (!isEmpty(params.upid)) {
-                                var upid = params.upid;
-                                upid.forEach(function(entry) {
-                                    console.log("insertUserProductPreference upid: ", entry);
-                                    uppromises.push(insertUserProductPreference(entry));
-                                });
+                                if (!isEmpty(data) && 
+                                    data[0]["userStatus"] != 'CUSTOMER' && 
+                                    data[0]["userStatus"] != 'BETA') {
 
-                                await Promise.all(uppromises).catch(err => {
-                                    reject({ statusCode: 500, body: err.message });
-                                });    
-                            }                
+                                    throw new Error("Not authorized.");
+                                }
 
-                            let ucpromises = [];
-                            if (!isEmpty(params.upcid)) {
-                                var upcid = params.upcid;
-                                upcid.forEach(function(entry) {
-                                    console.log("insertUserChannelPreference upcid: ", entry);
-                                    ucpromises.push(insertUserChannelPreference(entry));
-                                });
+                                if (!isEmpty(params.preferenceType)) {
+                                    preferenceType = params.preferenceType;
+                                } else {
+                                    throw new Error("preferenceType is missing.");
+                                }
+                                
+                                if (preferenceType != "REVIEW" && 
+                                    preferenceType != "INSIGHT" && 
+                                    preferenceType != "COMPARISON") {                                    
+                                        throw new Error("Invalid Parameter.");
+                                }
 
-                                await Promise.all(ucpromises).catch(err => {
-                                    reject({ statusCode: 500, body: err.message });
-                                });  
-                            }
-                
-                        }, reject).then(function() {
-                            resolve(params);
-                        }).catch(err => {
-                            reject({ statusCode: 500, body: err.message });
-                        });                       
+                                if (!isEmpty(preferenceType)) {
+                                    await deleteUserFilterPreference();                        
+                                    await deleteUserChannelPreference();                            
+                                    await deleteUserProductPreference();
+                                }                            
+
+                                if (!isEmpty(params.filter)) {
+                                    await insertUserFilterPreference(params);
+                                } 
+                                
+                                let uppromises = [];
+                                if (!isEmpty(params.upid)) {
+                                    var upid = params.upid;
+                                    upid.forEach(function(entry) {
+                                        console.log("insertUserProductPreference upid: ", entry);
+                                        uppromises.push(insertUserProductPreference(entry));
+                                    });
+
+                                    await Promise.all(uppromises).catch(err => {
+                                        reject({ statusCode: 500, body: err.message });
+                                    });    
+                                }                
+
+                                let ucpromises = [];
+                                if (!isEmpty(params.upcid)) {
+                                    var upcid = params.upcid;
+                                    upcid.forEach(function(entry) {
+                                        console.log("insertUserChannelPreference upcid: ", entry);
+                                        ucpromises.push(insertUserChannelPreference(entry));
+                                    });
+
+                                    await Promise.all(ucpromises).catch(err => {
+                                        reject({ statusCode: 500, body: err.message });
+                                    });  
+                                }
+                    
+                            }, reject).then(function() {
+                                resolve(params);
+                            }).catch(err => {
+                                reject({ statusCode: 500, body: err.message });
+                            });
+                        }                  
 
                     break;
                         
@@ -314,7 +317,7 @@ function getUserChannelPreference(params) {
 }
 
 function getUserProductPreference(params) {
-    sql = "SELECT upcid from UserProductPreference \
+    sql = "SELECT upid from UserProductPreference \
             WHERE userid = '" + userid + "' \
             AND preferenceType  = '" + params.preferenceType + "'";
 
