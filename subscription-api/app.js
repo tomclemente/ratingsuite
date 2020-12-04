@@ -191,9 +191,10 @@ exports.handler = async (event, context) => {
                                             }
 
                                         } else if (params.updateType == 'Channel') {
-                                            await updateUserProductChannelPUT(params.channelName, params.channelURL, params.upcid);
-                                            //await updateProductChannelPUT(params.upcid);
-
+                                            if (!isEmpty(params.upcid) && !isEmpty(params.channelName) && !isEmpty(params.channelURL)) {
+                                                await updateUserProductChannelPUT(params.channelName, params.channelURL, params.upcid);
+                                                //await updateProductChannelPUT(params.upcid);
+                                            }
                                         } else {
                                             throw new Error("Missing updateType.");
                                         }
@@ -954,13 +955,13 @@ function getIdPool() {
 }
 
 function getSubscriptionDetails() {
-    sql = "SELECT pp.plan, s.startDt, s.endDt, s.subscriptionStatus, upl.idUserPool, upl.type, s.upid, \
+    sql = "SELECT pp.plan, s.startDt, s.endDt, s.renewalDt, s.subscriptionStatus, upl.idUserPool, upl.type, upl.expiryDt, s.upid, \
             up.productAlias, upc.upcid, upc.channelName, upc.upcURL \
-             FROM UserProductChannel upc \
-             JOIN UserProduct up ON (upc.upid = up.upid) \
+             FROM UserProduct up \
              JOIN Subscription s ON (up.upid = s.upid) \
              JOIN ProductPlan pp ON (pp.idProductPlan = s.idProductPlan) \
              JOIN UserPool upl ON (upl.idUserPool = s.idUserPool) \
+             LEFT OUTER JOIN UserProductChannel upc ON (upc.upid = up.upid)\
              WHERE upl.userid = '" + userid + "'" ;
     return executeQuery(sql);    
 }
