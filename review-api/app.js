@@ -78,8 +78,7 @@ exports.handler = async (event, context) => {
                         getPromises.push(getUserMaster());
                         getPromises.push(getUserFilterPreference());
                         getPromises.push(getUserPool()); // Jeet - add option for more than one userpool
-                        getPromises.push(getUserChannelPreference()); // Jeet - remove upid
-                        // Jeet - to be added getUserProductPreference
+                        getPromises.push(getUserChannelPreference()); 
                         getPromises.push(getUserProductPreference()); 
 
                         Promise.all(getPromises).then(function() {
@@ -256,7 +255,7 @@ function getProductReview(upcidPref, upidPref) {
                     JOIN UserProduct up ON upc.upid = up.upid AND up.status = 'ACTIVE' \
                     JOIN Subscription s ON up.upid = s.upid AND s.idUserPool in ('" + userpoollist + "') \
                 WHERE s.upid in ('" + upidlist + "') \
-                AND upcid in ('" + upcidlist + "') " + filter + "";
+                AND s.subscriptionStatus = ACTIVE AND upcid in ('" + upcidlist + "') " + filter + "";
             
     return executeQuery(sql).then(function(result) {
         productReviewData = result;
@@ -325,8 +324,8 @@ function getUpID() {
     sql = "SELECT up.upid \
             FROM UserProduct up \
             WHERE up.upid IN (SELECT upid FROM Subscription \
-                    WHERE subscriptionStatus = 'ACTIVE' AND idUserPool in ('" + userpoollist + "') \
-            AND up.status = 'ACTIVE' ) \
+                    WHERE subscriptionStatus = 'ACTIVE' AND idUserPool in ('" + userpoollist + "')) \
+            AND up.status = 'ACTIVE' \
             ORDER by up.productAlias DESC \
             LIMIT 1";
     return executeQuery(sql);
@@ -347,7 +346,7 @@ function getDefaultProductReviews(upid) {
 
     console.log("getDefaultProductReviews upidlist: ", upidlist);
 
-    sql = "SELECT s.upid,up.productAlias,upc.upcid,upc.channelName, \
+    sql = "SELECT up.upid,up.productAlias,upc.upcid,upc.channelName, \
                 pr.reviewID, pr.reviewTitle, pr.reviewBody, pr.reviewUser, \
                 pr.reviewUserID, pr.verifiedPurchase, pr.reviewDate, \
                 pr.reviewRating, pr.reviewSentiment, pr.reviewRelevance, \
