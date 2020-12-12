@@ -114,8 +114,18 @@ exports.handler = async (event, context) => {
                                         }
 
                                     }, reject).then(function() {
-                                        console.log("Returning Params: ", params);
-                                        resolve(params);
+                                        // console.log("Returning Params: ", params);
+                                        // resolve(params);
+
+                                        getIdPool().then(function(result) {
+                                            if (!isEmpty(result)) {
+                                                getSubscriptionDetails().then(function(data) {
+                                                    resolve(data);
+                                                }, reject);
+                                            }
+                                        }, reject).catch(err => {
+                                            reject({ statusCode: 500, body: err.message });
+                                        });
 
                                     }).catch(err => reject({ statusCode: 500, body: err.message }));
                                 }
@@ -142,15 +152,24 @@ exports.handler = async (event, context) => {
                                     if (isEmpty(params.upid)) { //New Product
                                         return createNewProductPOST(params);
                                     } else { //New Channel
-                                        return createUserProductChannelPOST(params.upid, params);
+                                        return createUserProductChannelPOST(params.upid, params).then(function() {
+                                            return getRecentUserProductChannel(params.upid, params).then(function(data) {
+                                                params.upcid = data.upcid;
+                                            });
+                                        });
                                     }
 
                                 }).then(async function() {
                                     if (isEmpty(params.upid)) {
                                         const result = await getUpIDPOST();
                                         params.upid = result[0].upid;
+                                        
                                         return createUserProductChannelPOST(params.upid, params).then(function() {
-                                            return createSubscriptionPOST(params.upid, idPool);
+                                            return createSubscriptionPOST(params.upid, idPool).then(function() {
+                                                return getRecentUserProductChannel(params.upid, params).then(function(data) {
+                                                    params.upcid = data.upcid;
+                                                });
+                                            })
                                         });
                                     }
 
@@ -160,7 +179,7 @@ exports.handler = async (event, context) => {
                                 }).then(function() {
                                     console.log("Returning Params: ", params);
                                     resolve(params);
-                                        
+           
                                 }).catch(err => reject({ statusCode: 500, body: err.message }));
                             }
                         }, reject).catch(err => reject({ statusCode: 500, body: err.message }));
@@ -1079,6 +1098,15 @@ function createUserProductChannelPOST(upid, params) {
     return executePostQuery(sql, post); 
 }
 
+function getRecentUserProductChannel(upid, params) {
+    sql = "SELECT upcid FROM UserProductChannel\
+            WHERE upid = '" + upid + "' \
+            AND channelName = '" + params.channelName + "' \
+            AND upcURL = '" + params.channelURL + "'";
+
+    return executeQuery(sql);
+}
+
 function createSubscriptionPOST(upid, idUserPool) {
     var post = {idProductPlan: 'PP5', upid: upid, idUserPool: idUserPool, subscriptionStatus: 'NEW'};
     sql = "INSERT INTO Subscription SET ?";
@@ -1086,7 +1114,10 @@ function createSubscriptionPOST(upid, idUserPool) {
 }
 
 function insertUserPoolPOST(idUserPool) {
-    var post = {idUserPool: idUserPool, type: 'USER', userid: userid};
+    var expiryDt = new Date();
+    expiryDt.addDays(14);
+
+    var post = {idUserPool: idUserPool, type: 'USER', userid: userid, expiryDt: expiryDt};
     sql = "INSERT INTO UserPool SET ?";
     return executePostQuery(sql, post);   
 }
