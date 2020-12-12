@@ -148,15 +148,14 @@ exports.handler = async (event, context) => {
                                         idPool = data[0].idUserPool
                                     }
                                     
-                                }).then(function() {
+                                }).then(async function() {
                                     if (isEmpty(params.upid)) { //New Product
                                         return createNewProductPOST(params);
+                                        
                                     } else { //New Channel
-                                        return createUserProductChannelPOST(params.upid, params).then(function() {
-                                            return getRecentUserProductChannel(params.upid, params).then(function(data) {
-                                                params.upcid = data.upcid;
-                                            });
-                                        });
+                                        await createUserProductChannelPOST(params.upid, params);
+                                        const data = await getRecentUserProductChannel(params.upid, params);
+                                        params.upcid = data[0].upcid;
                                     }
 
                                 }).then(async function() {
@@ -164,12 +163,10 @@ exports.handler = async (event, context) => {
                                         const result = await getUpIDPOST();
                                         params.upid = result[0].upid;
 
-                                        return createUserProductChannelPOST(params.upid, params).then(function() {
-                                            return createSubscriptionPOST(params.upid, idPool).then(function() {
-                                                return getRecentUserProductChannel(params.upid, params).then(function(data) {
-                                                    params.upcid = data.upcid;
-                                                });
-                                            })
+                                        return createUserProductChannelPOST(params.upid, params).then(async function() {
+                                            await createSubscriptionPOST(params.upid, idPool);
+                                            const data = await getRecentUserProductChannel(params.upid, params);
+                                            params.upcid = data[0].upcid;
                                         });
                                     }
 
