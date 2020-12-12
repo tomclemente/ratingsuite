@@ -163,7 +163,7 @@ exports.handler = async (event, context) => {
                                     if (isEmpty(params.upid)) {
                                         const result = await getUpIDPOST();
                                         params.upid = result[0].upid;
-                                        
+
                                         return createUserProductChannelPOST(params.upid, params).then(function() {
                                             return createSubscriptionPOST(params.upid, idPool).then(function() {
                                                 return getRecentUserProductChannel(params.upid, params).then(function(data) {
@@ -333,7 +333,7 @@ exports.handler = async (event, context) => {
 
     } catch (err) {
         statusCode = '400';
-        body = err;
+        body = err.message;
         console.log("body return 1", err);
         
     } finally {
