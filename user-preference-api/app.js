@@ -81,7 +81,7 @@ exports.handler = async (event, context) => {
     
                                 if (!isEmpty(data)) {
                                     respObj = new Array();
-                                    
+
                                     await getUserFilterPreference(params);
                                     await getUserChannelPreference(params);
                                     await getUserProductPreference(params);
@@ -211,7 +211,7 @@ exports.handler = async (event, context) => {
 
     } catch (err) {
         statusCode = '400';
-        body = err;
+        body = err.message;
         console.log("body return 1", err);
         
     } finally {
