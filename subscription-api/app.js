@@ -150,12 +150,16 @@ exports.handler = async (event, context) => {
                                     
                                 }).then(async function() {
                                     if (isEmpty(params.upid)) { //New Product
-                                        return createNewProductPOST(params);
+                                        await createNewProductPOST(params);
+                                        returnProductPOST.then(function(data) {
+                                            resolve(data);
+                                        })
                                         
                                     } else { //New Channel
                                         await createUserProductChannelPOST(params.upid, params);
                                         const data = await getRecentUserProductChannel(params.upid, params);
                                         params.upcid = data[0].upcid;
+                                        unset(params.productAlias);
                                     }
 
                                 }).then(async function() {
@@ -330,7 +334,7 @@ exports.handler = async (event, context) => {
 
     } catch (err) {
         statusCode = '400';
-        body = err.message;
+        body = err;
         console.log("body return 1", err);
         
     } finally {
@@ -1084,6 +1088,18 @@ function createNewProductPOST(params) {
     return executePostQuery(sql, post);
 }
 
+function returnProductPOST() {
+    sql = "SELECT s.upid, pp.plan, s.startDt, s.endDt, s.renewalDt, s.subscriptionStatus \
+            FROM UserProduct up \
+            JOIN Subscription s ON (up.upid = s.upid) \
+            JOIN ProductPlan pp ON (pp.idProductPlan = s.idProductPlan) \
+            WHERE up.upid = (Select MAX(up2.upid) from UserProduct up2 \
+            JOIN Subscription s2 ON up2.upid = s2.upid \
+            JOIN UserPool upl2 ON upl2.idUserPool = s2.idUserPool \
+            where upl2.type = 'ADMIN' and upl2.userid = '" + userid + "')";
+    return executeQuery(sql);
+}
+
 function getUpIDPOST() {
     sql = "SELECT MAX(upid) as upid FROM UserProduct";            
     return executeQuery(sql);
@@ -1112,7 +1128,7 @@ function createSubscriptionPOST(upid, idUserPool) {
 
 function insertUserPoolPOST(idUserPool) {
     var expiryDt = new Date();
-    expiryDt.addDays(14);
+    expiryDt.setDate(expiryDt.getDate() + 14);
 
     var post = {idUserPool: idUserPool, type: 'USER', userid: userid, expiryDt: expiryDt};
     sql = "INSERT INTO UserPool SET ?";
