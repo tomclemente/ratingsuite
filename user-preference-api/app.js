@@ -68,7 +68,7 @@ exports.handler = async (event, context) => {
 
                     case 'POST':
 
-                        if (isEmpty(params.upid) && isEmpty(params.upid)) { // FOR GET REQUEST
+                        if (isEmpty(params.upid) && isEmpty(params.upcid)) { // FOR GET REQUEST
 
                             getUser().then(async function(data) {
 
