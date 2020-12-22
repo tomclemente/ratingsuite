@@ -151,7 +151,7 @@ exports.handler = async (event, context) => {
                                 }).then(async function() {
                                     if (isEmpty(params.upid)) { //New Product
                                         await createNewProductPOST(params);
-                                        returnProductPOST.then(function(data) {
+                                        return ProductPOST.then(function(data) {
                                             resolve(data);
                                         })
                                         
