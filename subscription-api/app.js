@@ -1113,9 +1113,8 @@ function createUserProductChannelPOST(upid, params) {
 function getRecentUserProductChannel(upid, params) {
     sql = "SELECT upcid FROM UserProductChannel\
             WHERE upid = '" + upid + "' \
-            AND upcURL = '" + params.channelURL + "'";
-                       
-           //AND channelName = '" + params.channelName + "'
+            AND upcURL = '" + params.channelURL + "' \
+            AND channelName = '" + params.channelName + "'";
 
     return executeQuery(sql);
 }
