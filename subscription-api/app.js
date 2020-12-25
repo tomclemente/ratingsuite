@@ -141,8 +141,8 @@ exports.handler = async (event, context) => {
     
                                     } else if (isEmpty(data)) {
                                         await addAdminToUserPoolPOST();
-                                        const res = await getNewIdUserPoolPOST();
-                                        idPool = res[0].idUserPool;    
+                                        const resp = await getNewIdUserPoolPOST();
+                                        idPool = resp[0].idUserPool;    
 
                                     } else if (!isEmpty(data)) {
                                         idPool = data[0].idUserPool
@@ -151,15 +151,14 @@ exports.handler = async (event, context) => {
                                 }).then(async function() {
                                     if (isEmpty(params.upid)) { //New Product
                                         await createNewProductPOST(params);
-                                        returnProductPOST.then(function(data) {
-                                        resolve(data);
-                                        })
-                                        
+                                        const resp = await returnProductPOST();
+                                        resolve(resp);
+
                                     } else { //New Channel
                                         await createUserProductChannelPOST(params.upid, params);
-                                        const data = await getRecentUserProductChannel(params.upid, params);
-                                        params.upcid = data[0].upcid;
-                                        unset(params.productAlias);
+                                        const resp = await getRecentUserProductChannel(params.upid, params);
+                                        params.upcid = resp[0].upcid;
+                                        delete(params.productAlias);
                                     }
 
                                 }).then(async function() {
@@ -169,8 +168,8 @@ exports.handler = async (event, context) => {
 
                                         return createUserProductChannelPOST(params.upid, params).then(async function() {
                                             await createSubscriptionPOST(params.upid, idPool);
-                                            const data = await getRecentUserProductChannel(params.upid, params);
-                                            params.upcid = data[0].upcid;
+                                            const resp = await getRecentUserProductChannel(params.upid, params);
+                                            params.upcid = resp[0].upcid;
                                         });
                                     }
 
@@ -1093,10 +1092,10 @@ function returnProductPOST() {
             FROM UserProduct up \
             JOIN Subscription s ON (up.upid = s.upid) \
             JOIN ProductPlan pp ON (pp.idProductPlan = s.idProductPlan) \
-            WHERE up.upid = (Select MAX(up2.upid) from UserProduct up2 \
+            WHERE up.upid = (SELECT MAX(up2.upid) from UserProduct up2 \
             JOIN Subscription s2 ON up2.upid = s2.upid \
             JOIN UserPool upl2 ON upl2.idUserPool = s2.idUserPool \
-            where upl2.type = 'ADMIN' and upl2.userid = '" + userid + "')";
+            WHERE upl2.type = 'ADMIN' and upl2.userid = '" + userid + "')";
     return executeQuery(sql);
 }
 
@@ -1114,8 +1113,9 @@ function createUserProductChannelPOST(upid, params) {
 function getRecentUserProductChannel(upid, params) {
     sql = "SELECT upcid FROM UserProductChannel\
             WHERE upid = '" + upid + "' \
-            AND channelName = '" + params.channelName + "' \
             AND upcURL = '" + params.channelURL + "'";
+                       
+           //AND channelName = '" + params.channelName + "'
 
     return executeQuery(sql);
 }
