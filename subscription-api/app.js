@@ -87,7 +87,8 @@ exports.handler = async (event, context) => {
                     break;
     
                     case 'POST':
-                        var idPool;
+                        var idPool = null;
+                        var newChannel = false;
 
                         arrPromise.push(getNotification());
                         arrPromise.push(getUserMaster());
@@ -148,36 +149,38 @@ exports.handler = async (event, context) => {
                                         idPool = data[0].idUserPool
                                     }
                                     
-                                }).then(async function() {
+                                }).then(async function() {                                    
                                     if (isEmpty(params.upid)) { //New Product
                                         await createNewProductPOST(params);
-                                        const resp = await returnProductPOST();
-                                        resolve(resp);
 
+                                        const result = await getUpIDPOST(); //get recent upid
+                                        params.upid = result[0].upid;
+
+                                        if (!isEmpty(params.channelName) &&  !isEmpty(params.channelURL)) {
+                                            await createUserProductChannelPOST(params.upid, params);
+                                            await createSubscriptionPOST(params.upid, idPool);
+                                            
+                                            const res = await getRecentUserProductChannel(params.upid, params);
+                                            params.upcid = res[0].upcid;
+                                        }
+
+                                        params['userproduct'] = await returnProductPOST(params.upid);
+                                        
                                     } else { //New Channel
+                                        newChannel = true;
                                         await createUserProductChannelPOST(params.upid, params);
                                         const resp = await getRecentUserProductChannel(params.upid, params);
                                         params.upcid = resp[0].upcid;
-                                        delete(params.productAlias);
-                                    }
 
-                                }).then(async function() {
-                                    if (isEmpty(params.upid)) {
-                                        const result = await getUpIDPOST();
-                                        params.upid = result[0].upid;
-
-                                        return createUserProductChannelPOST(params.upid, params).then(async function() {
-                                            await createSubscriptionPOST(params.upid, idPool);
-                                            const resp = await getRecentUserProductChannel(params.upid, params);
-                                            params.upcid = resp[0].upcid;
-                                        });
                                     }
 
                                 }).then(function() {
                                     return sendEmail(generatePOSTEmail(params));
     
                                 }).then(function() {
-                                    console.log("Returning Params: ", params);
+                                    if (newChannel) {
+                                        delete params.productAlias;    
+                                    }                 
                                     resolve(params);
            
                                 }).catch(err => reject({ statusCode: 500, body: err.message }));
@@ -1087,15 +1090,12 @@ function createNewProductPOST(params) {
     return executePostQuery(sql, post);
 }
 
-function returnProductPOST() {
+function returnProductPOST(upid) {
     sql = "SELECT s.upid, pp.plan, s.startDt, s.endDt, s.renewalDt, s.subscriptionStatus \
             FROM UserProduct up \
             JOIN Subscription s ON (up.upid = s.upid) \
             JOIN ProductPlan pp ON (pp.idProductPlan = s.idProductPlan) \
-            WHERE up.upid = (SELECT MAX(up2.upid) from UserProduct up2 \
-            JOIN Subscription s2 ON up2.upid = s2.upid \
-            JOIN UserPool upl2 ON upl2.idUserPool = s2.idUserPool \
-            WHERE upl2.type = 'ADMIN' and upl2.userid = '" + userid + "')";
+            WHERE up.upid =  '" + upid + "'";
     return executeQuery(sql);
 }
 
