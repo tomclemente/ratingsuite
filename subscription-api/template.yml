@@ -10,7 +10,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: subscription-api
-      Handler: app.handler
+      Handler: 1.0/app.handler
       Runtime: nodejs12.x
       MemorySize: 128
       Timeout: 200
